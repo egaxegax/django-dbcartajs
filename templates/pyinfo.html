@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% load i18n %}
+{% block title %}dbCartajs - System Server Info{% endblock %}
+{% block content %}
+  <h2 style="background:rgb(230,230,230)">System Information</h2>
+{% for info in info_obj %}
+  <p>{{ info.name }}: {{ info.val }}</p>
+{% endfor %}
+{% endblock %}
