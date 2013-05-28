@@ -9,10 +9,15 @@ var MUtil = {
   */
   ang360: function(angle) {
     if (angle >= 0.0 && angle < 360.0) return angle;
-  	var temp = parseInt(angle / 360);
-  	if (angle < 0.0) temp --;
+    var temp = parseInt(angle / 360);
+    if (angle < 0.0) temp --;
     temp *= 360;
-  	return angle - temp;
+    return angle - temp;
+  },
+  angPI: function(ang) {
+    while(ang < -Math.PI) ang += 2.0 * Math.PI;
+    while(ang > Math.PI) ang -= 2.0 * Math.PI;
+    return ang;
   },
   /**
   * Convert degrees D to [hh,mm,ss] (Right Ascention).
@@ -87,24 +92,55 @@ var MUtil = {
   }
 }
 var MVector = {
+  /**
+  * Z-rotation matrix on angle ANG.
+  */
+  matrZ: function(ang){
+    return [ [ Math.cos(ang), -Math.sin(ang), 0 ],
+             [ Math.sin(ang), Math.cos(ang), 0 ],
+             [ 0, 0, 1 ] ];
+  },
+  /**
+  * Mult. matrix A on vector B.
+  */
   multmatr3: function(a, b) {
+    var c = []; 
     for (var j=0; j<=2; j++) {
       var ss = 0;
       for (var i=0; i<=2; i++)
         ss += a[i][j] * b[i];
-      c[j] = ss;
+      c.push(ss);
     }
     return c;
   },
+  /**
+  * Rect.(x,y,z) to spherical (ra,dec,r).
+  */
   rect2spheric: function(xe, ye, ze) {
-    return { 'lon': Math.atan2( ye, xe ),
-             'lat': Math.atan2( ze, Math.sqrt(xe*xe+ye*ye) ),
-             'r': Math.sqrt(xe*xe+ye*ye+ze*ze) };
+    return [ Math.atan2( ye, xe ),
+             Math.atan2( ze, Math.sqrt(xe*xe+ye*ye) ),
+             Math.sqrt(xe*xe+ye*ye+ze*ze) ];
   },
-  spheric2rect: function(lon, lat, r=1) {
-    return { 'x': r * Math.cos(lon) * Math.cos(lat),
-             'y': r * Math.sin(lon) * Math.cos(lat),
-             'z': r * Math.sin(lat) };
+  /**
+  * Spherical (ra,dec) to rect.(x,y,z).
+  */
+  spheric2rect: function(lon, lat) {
+    return [ Math.cos(lon) * Math.cos(lat),
+             Math.sin(lon) * Math.cos(lat),
+             Math.sin(lat) ];
+  },
+  /**
+  * Rect.(x,y,z) to spherical geodetic (lon,lat).
+  */
+  rect2geo: function(dt, xe, ye, ze) {
+    var gmst = Starry.siderealTime(dt),
+        skyRotationAngle = gmst / 12.0 * Math.PI;
+    var mz = this.matrZ(skyRotationAngle);
+    var v = this.multmatr3(mz, [xe, ye, ze]),
+        lonlat = this.rect2spheric(v[0], v[1], v[2]);
+    var ret = [ MUtil.angPI(lonlat[0]) * 180/Math.PI,
+              lonlat[1] * 180/Math.PI ];
+    return ret;
   }
 }
 var Qn = {
@@ -169,7 +205,7 @@ var Qn = {
 }
 var Starry = {
   /**
-  * String date to array
+  * String date to array.
   */
   parseDate: function(dt) {
     var dt = dt.split(" ");
@@ -178,7 +214,7 @@ var Starry = {
     return [Number(d[2]),Number(d[1]),Number(d[0]),Number(t[0]),Number(t[1]),Number(t[2])];
   },
   /**
-  * Modified Julian Day MJD
+  * Modified Julian Day MJD.
   */
   gregorianToJulian: function(y, m, d) {
     if (y <= 99)
@@ -195,7 +231,7 @@ var Starry = {
     return (1721119 + d + (146097*c)/4 + (1461*ya)/4 + (153*m+2)/5);
   },
   /**
-  * Sidereal time in J2000
+  * Sidereal time in J2000.
   */
   siderealTime: function(dt) {
     // mjd UTC
@@ -212,7 +248,7 @@ var Starry = {
     return gmst - parseInt( gmst / 24.0 ) * 24.0;
   },
   /**
-  * Calc stars pos on lonlat
+  * Calc stars pos on lonlat.
   */
   renderSky: function(
     starsdata,    // array stars
@@ -274,7 +310,7 @@ var Starry = {
     return mstars;
   },
   /**
-  * Calc sat pos by height above Earth on lonlat
+  * Calc sat pos by height above Earth on lonlat.
   */
   renderSat: function(
     tracs,    // array stars
@@ -319,7 +355,7 @@ var Starry = {
 
       // size
       if ( i == 0 ) 
-        size = 10.0;
+        size = 20.0;
       else
         size = 1.0;
 
