@@ -37,22 +37,22 @@ def sgp4_tracs(request, *args, **kw):
     # loop tledata
     ret = []
     for x in tledata:
-      pos = []
-      try:
-          satellite = twoline2rv(x[1], x[2], wgs84)
-          ps = 2.0 * math.pi * 1/satellite.no * 60.0
-          utc1 = utc2 = datetime.datetime(*utc)
-          # by 2 mean motion ago
-          delta = datetime.timedelta(0, ps)
-          step = delta.total_seconds() / 10.0
-          while (utc1 - utc2 < delta):
-              p, v = satellite.propagate(*utc2.timetuple()[:6])
-              utc2 = utc2 - datetime.timedelta(0, step)
-              pos += [p]
-              break
-          ret += [[x[0], pos]]
-      except:
-          pass
+        pos = []
+        try:
+            satellite = twoline2rv(x[1], x[2], wgs84)
+            ps = 2.0 * math.pi * 1/satellite.no * 60.0
+            utc1 = utc2 = datetime.datetime(*utc)
+            # by 2 mean motion ago
+            delta = datetime.timedelta(0, ps)
+            step = delta.total_seconds() / 10.0
+            while (utc1 - utc2 < delta):
+                p, v = satellite.propagate(*utc2.timetuple()[:6])
+                utc2 = utc2 - datetime.timedelta(0, step)
+                pos += [p]
+                break
+            ret += [[x[0], pos]]
+        except:
+            pass
     return HttpResponse(str(ret))
 
 def pyinfo(request):

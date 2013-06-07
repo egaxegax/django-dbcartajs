@@ -91,9 +91,9 @@
             mcoords = MVector.rect2geo(gmtime, tracs[i][1][0][0], tracs[i][1][0][1], tracs[i][1][0][2]);
         drawlonlat(mtracs, 'sattrac');
         dbcarta.paintCarta([mcoords], 'satsurface');
-        if (mtracs)
+        if (mtracs.length)
           if (mtracs[0][1] > 1) { // not overlap
-            // sat.field of vision
+            // sat.fields of vision
             var pts = MVector.circle1spheric(mcoords[0], mcoords[1], MVector.AE * 18 * Math.PI/180, 20);
             // conv to lonlat
             for(var j in pts){
@@ -145,7 +145,7 @@
     document.getElementById("ss").value = dt[5];
   }
   function setAutoTime() {
-    if ('autotime' in window) {
+    if (window.autotime) {
       window.autotime = window.clearInterval(window.autotime);
       document.getElementById("btauto").textContent = "auto";
     } else {
