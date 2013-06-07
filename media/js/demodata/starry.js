@@ -14,6 +14,9 @@ var MUtil = {
     temp *= 360;
     return angle - temp;
   },
+  /**
+  * Angle in range -PI..PI
+  */
   angPI: function(ang) {
     while(ang < -Math.PI) ang += 2.0 * Math.PI;
     while(ang > Math.PI) ang -= 2.0 * Math.PI;
@@ -89,9 +92,19 @@ var MUtil = {
     }
     if (deg < 0) d *= -1.0;
     return [d, m, s];
+  },
+  sign: function(x) {
+    if (x > 0)
+      return 1.0;
+    else if (x < 0)
+      return -1.0;
+    else
+      return 0.0;
   }
 }
 var MVector = {
+  EPS: 1e-8,   // epsilon
+  AE: 6378.136, // earth radii km
   /**
   * Z-rotation matrix on angle ANG.
   */
@@ -122,7 +135,7 @@ var MVector = {
              Math.sqrt(xe*xe+ye*ye+ze*ze) ];
   },
   /**
-  * Spherical (ra,dec) to rect.(x,y,z).
+  * Spheric.(ra,dec) to rect.(x,y,z).
   */
   spheric2rect: function(lon, lat) {
     return [ Math.cos(lon) * Math.cos(lat),
@@ -139,8 +152,74 @@ var MVector = {
     var v = this.multmatr3(mz, [xe, ye, ze]),
         lonlat = this.rect2spheric(v[0], v[1], v[2]);
     var ret = [ MUtil.angPI(lonlat[0]) * 180/Math.PI,
-              lonlat[1] * 180/Math.PI ];
+                lonlat[1] * 180/Math.PI ];
     return ret;
+  },
+  /**
+  * Intersect. line MA and circle R.
+  */
+  lineNcircle: function(ma, r){
+     // y=kx+e
+    var k = (ma[1][1] - ma[0][1])/(ma[1][0] - ma[0][0]),
+        e = ma[1][1] - k * ma[1][0];
+    // ax+bx+c=0
+    var a = -k, b = 1, c = -e;
+
+    var x0 = -a*c/(a*a+b*b),
+        y0 = -b*c/(a*a+b*b);
+    if (c*c > r*r*(a*a+b*b)) // no points
+      return;
+    else if (Math.abs(c*c - r*r*(a*a+b*b)) < 0) // 1 point
+       return ma[1];
+    else {  // 2 points
+    var d = r*r - c*c/(a*a+b*b),
+        mult = Math.sqrt(d / (a*a+b*b));
+    var ax = x0 + b * mult,
+        bx = x0 - b * mult;
+        ay = y0 - a * mult;
+        by = y0 + a * mult;
+    // closest
+    var r1 = Math.sqrt((ma[0][0] - ax)*(ma[0][0] - ax) + (ma[0][1] - ay)*(ma[0][1] - ay)),
+        r2 = Math.sqrt((ma[0][0] - bx)*(ma[0][0] - bx) + (ma[0][1] - by)*(ma[0][1] - by));
+    if (r1 < r2)
+      return [ ax, ay ];
+    else
+      return [ bx, by ];
+    }
+  },
+  /**
+  * Circle points on sphere.
+  */
+  circle1spheric: function(x, y, radius, col_vertex){
+    // latitude 90
+    if (Math.abs(y) - 90 < this.eps)
+      y = y + MUtil.sign(y) * this.eps;
+
+    var r = radius / this.AE,
+      anglestep = 2.0 * Math.PI / col_vertex,
+      angle, dx, dy,
+      pts = [];
+    for (var i=0; i<=col_vertex; i++) {
+      angle = i * anglestep;
+    
+      dy = Math.asin((((Math.cos(angle) * Math.sin(r) * Math.sin(r) + Math.cos(r) * Math.cos(r)) * Math.cos(y * Math.PI/180)) - Math.cos(r) * Math.cos(y * Math.PI/180 + r)) / Math.sin(r));
+      dx = ((Math.cos(r) - Math.sin(dy) * Math.sin(y * Math.PI/180)) / ((Math.cos(dy) * Math.cos(y * Math.PI/180))));
+    
+      if (dx > 1)
+        dx = 0; 
+      else if (dx < -1) 
+        dx = Math.PI;
+      else 
+        dx = Math.acos(dx);
+    
+      if (angle <= Math.PI)
+        dx = x - dx * 180/Math.PI;
+      else
+        dx = x + dx * 180/Math.PI;
+      
+      pts.push([MUtil.angPI(dx * Math.PI/180) * 180/Math.PI, dy * 180/Math.PI]);
+    }
+    return pts;
   }
 }
 var Qn = {
@@ -350,12 +429,12 @@ var Starry = {
           continue;
 
       // outside
-      if ( (px < left || px >= right) || (py > top || py <= bottom) )
-          continue;
+      //if ( (px < left || px >= right) || (py > top || py <= bottom) )
+      //    continue;
 
       // size
       if ( i == 0 ) 
-        size = 20.0;
+        size = 10.0;
       else
         size = 1.0;
 

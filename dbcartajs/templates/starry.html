@@ -56,7 +56,7 @@
     return pt;
   }
   // Draw points (stars, tracs) on lonlat
-  function drawpoints(pts, ftype){
+  function drawlonlat(pts, ftype){
     var proj = dbcarta.initProj();
     var cx = proj.long0 * 180/Math.PI,
         cy = proj.lat0 * 180/Math.PI;
@@ -64,11 +64,12 @@
     dbcarta.initProj(0, '');
     for(var i in pts) {
       dbcarta.mopt[ftype]['size'] = pts[i][1] / 8;
-      dbcarta.paintCarta(pts[i][0], ftype);
+      dbcarta.paintCarta(pts[i][0], ftype, pts[i][2]);
     }
     // restore spherical proj
     dbcarta.initProj(202, ' +h=' + proj.h + ' +lon_0=' + cx + ' +lat_0=' + cy);
   }
+  // Render sky obj
   function loadStarry(){
     var proj = dbcarta.initProj();
     var rect = dbcarta.viewsizeOf(),
@@ -81,14 +82,36 @@
     // draw stars
     var stars = window.STARS,
         mstars = Starry.renderSky(stars, rect, skyRadius, eaRadius, cx, cy, gmtime);
-    drawpoints(mstars, 'star');
+    drawlonlat(mstars, 'star');
     // async get sat.tracs
     upfunc({url:'/sgp4tracs/' + gmtime.join('/'),mycallback:function(r){
       var tracs = eval(r.responseText);
-          mtracs = Starry.renderSat(tracs, rect, eaRadius, eaRadiusM, cx, cy, gmtime),
-          mcoords = MVector.rect2geo(gmtime, tracs[0][0], tracs[0][1], tracs[0][2]);
-      drawpoints(mtracs, 'sattrac');
-      dbcarta.paintCarta([mcoords], 'satsurface');
+      for(var i in tracs){
+        var mtracs = Starry.renderSat(tracs[i][1], rect, eaRadius, eaRadiusM, cx, cy, gmtime),
+            mcoords = MVector.rect2geo(gmtime, tracs[i][1][0][0], tracs[i][1][0][1], tracs[i][1][0][2]);
+        drawlonlat(mtracs, 'sattrac');
+        dbcarta.paintCarta([mcoords], 'satsurface');
+        if (mtracs)
+          if (mtracs[0][1] > 1) { // not overlap
+            // sat.field of vision
+            var pts = MVector.circle1spheric(mcoords[0], mcoords[1], MVector.AE * 18 * Math.PI/180, 20);
+            // conv to lonlat
+            for(var j in pts){
+              if (pt = dbcarta.transformCoords('epsg:4326', String(dbcarta.project), pts[j])) {
+                // backside intersect ea
+                if (!pt[2])
+                  pt = MVector.lineNcircle([ mtracs[0][0][0], pt ], eaRadius);
+                // triangle sector
+                if (j > 0)
+                  drawlonlat([[[mtracs[0][0][0], pt, pt1]]], 'sector');
+                // previous pt
+                var pt1 = pt;
+              }
+            }
+            // draw sat.label
+            drawlonlat([[[mtracs[0][0][0]], mtracs[0][1], tracs[i][0]]], 'sattrac');
+          }
+      }
     }});
   }
   // Calc maps scale by height above Earth
@@ -243,12 +266,16 @@
     dbcarta.mopt['sattrac'] = {};
     dbcarta.mopt['sattrac']['class'] = 'Dot';
     dbcarta.mopt['sattrac']['fg'] = "rgb(200,200,200)";
-    dbcarta.mopt['sattrac']['labelcolor'] = "rgb(255,155,128)";
+    dbcarta.mopt['sattrac']['labelcolor'] = "rgb(200,200,170)";
     dbcarta.mopt['satsurface'] = {};
     dbcarta.mopt['satsurface']['class'] = 'Dot';
     dbcarta.mopt['satsurface']['fg'] = "rgb(0,220,0)";
-    dbcarta.mopt['satsurface']['labelcolor'] = "rgb(255,155,128)";
     dbcarta.mopt['satsurface']['size'] = "2";
+    dbcarta.mopt['sector'] = {};
+    dbcarta.mopt['sector']['class'] = 'Polygon';
+    dbcarta.mopt['sector']['fg'] = "rgba(200,200,170,0.1)";
+    dbcarta.mopt['sector']['bg'] = "rgba(200,200,170,0.1)";
+    dbcarta.mopt['sector']['width'] = '0.2';
     var pov = [37.700,55.750];
     var proj = dbcarta.initProj(202, ' +lon_0=' + pov[0] + ' +lat_0=' + pov[1]);
     // nsper proj height list
