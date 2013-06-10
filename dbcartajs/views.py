@@ -17,7 +17,7 @@ def list_page(request, **kw):
         raise Http404
 
 def sgp4_tracs(request, *args, **kw):
-    """Sat. orbit tracs."""
+    """Sat. orbit tracs by SGP4 module."""
     from sgp4.earth_gravity import wgs84
     from sgp4.io import twoline2rv
     import datetime, math
