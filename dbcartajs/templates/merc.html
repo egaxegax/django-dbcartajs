@@ -35,7 +35,7 @@
     for(var mpart in window.COUNTRIES[abbr][1]) {
       var centerof = window.COUNTRIES[abbr][1][mpart][0],
           coords = window.COUNTRIES[abbr][1][mpart][1]
-      dbcarta.loadCarta([['Area', abbr + mpart, coords, (mpart==12 ? cntryname : ''), centerof]]);
+      dbcarta.loadCarta([['Area', abbr + mpart, coords, (mpart==12 ? cntryname : ''), centerof, true]]);
     }
     window.CONTINENTS = undefined;
     window.COUNTRIES = undefined;
