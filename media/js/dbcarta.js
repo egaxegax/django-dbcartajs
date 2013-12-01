@@ -34,13 +34,12 @@ function dbCarta(cfg) {
      *   pid: parent id
      *   width, height: canvas size
      *   viewportx, viewporty: offset limits for centerCarta in degrees
-     *   scalefg, scalebg: colors for paintScale
+     *   scalebg: bgcolor for paintScale
      * }
      */
     cfg: {
       viewportx: cfg.viewportx || 180.0,
       viewporty: cfg.viewporty || 90.0,
-      scalefg: cfg.scalefg || 'rgb(100,100,100)',
       scalebg: cfg.scalebg || 'rgba(255,255,255,0.3)'
     },
     /**
@@ -69,7 +68,8 @@ function dbCarta(cfg) {
       '.Longtitude':{cls: 'Line', fg: 'rgb(164,164,164)', anchor: ['start', 'top']},
       'DotPort':    {cls: 'Dot', fg: 'rgb(240,220,0)', anchor: ['start', 'middle'], size: 2},
       'Area':       {cls: 'Polygon', fg: 'rgb(0,80,170)', bg: 'rgb(0,80,170)'},
-      'Line':       {cls: 'Line', fg: 'rgb(0,130,200)'}
+      'Line':       {cls: 'Line', fg: 'rgb(0,130,200)'},
+      'DashLine':   {cls: 'Line', fg: 'rgba(0,0,0,0.2)', dash: [1,2]}
     },
     /**
      * Private
@@ -142,10 +142,10 @@ function dbCarta(cfg) {
           scale_x = 180;
       while (x <= scale_x) {
         var lon = [];
-        var y = -90;
-        while (y <= 90) {
+        var y = -89.99;
+        while (y <= 89.99) {
           lon.push([x, y]);
-          y += 90;
+          y += 89.99;
         }
         lonlat.push( ['.Longtitude', [x, y].toString(), lon, x.toString(), lon[0]] );
         x += 30;
@@ -169,14 +169,14 @@ function dbCarta(cfg) {
     checkScale: function(cx, cy) {
       var cw = this.width,
           ch = this.height,
-          hrect = 60,
-          wrect = 26,
-          tleft = cw - wrect,
-          ttop = ch/2.0 - hrect/2.0;
+          h = ch/5,
+          w = h/2,
+          tleft = cw - w,
+          ttop = ch/2 - h/2;
       var zoom = (this.m.scale < 1 ? 2-1/this.m.scale : this.m.scale);
-      if (cx > tleft && cx < cw && cy > ttop && cy < ttop + hrect/2.0) {
+      if (cx > tleft && cx < cw && cy > ttop && cy < ttop + h/2.0) {
         if (zoom < 50) zoom++;
-      } else if (cx > tleft && cx < cw && cy > ttop + hrect/2.0 && cy < ttop + hrect) {
+      } else if (cx > tleft && cx < cw && cy > ttop + h/2.0 && cy < ttop + h) {
         if (zoom > -18) zoom--;
       } else return;
       return (zoom > 1 ? zoom : 1/(2-zoom));
@@ -192,7 +192,7 @@ function dbCarta(cfg) {
       var left = rect[0], top = rect[1],
           right = rect[2], bottom = rect[3];
       if (left < (xlimit = -179.999)) left = xlimit;
-      if (top > (ylimit = (this.project == 101 ? 80 : 90))) top = ylimit;
+      if (top > (ylimit = (this.project == 101 ? 84 : 90))) top = ylimit;
       this.m.domap = false;
       for (var i in this.mflood) {
         var doreload, m = this.mflood[i];
@@ -415,20 +415,42 @@ function dbCarta(cfg) {
     paintScale: function() {
       var cw = this.width,
           ch = this.height,
-          hrect = 60,
-          wrect = 26,
-          tleft = cw - wrect,
-          ttop = ch/2.0 - hrect/2.0;
+          h = ch/5,
+          w = h/2,
+          tleft = cw - w,
+          ttop = ch/2 - h/2,
+          d = w/18; // + - size
       var ctx = this.getContext('2d');
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.beginPath(); // + -
-      ctx.rect(tleft + wrect/4.0, ttop + hrect/4.0, wrect/2.0, 1);
-      ctx.rect(tleft + wrect/2.0 - 0.5, ttop + hrect/7.0, 1, hrect/4.0);
-      ctx.rect(tleft + wrect/4.0, ttop + hrect/2.0 + hrect/4.0, wrect/2.0, 1);
-      ctx.fillStyle = this.cfg.scalefg;
-      ctx.fill();
-      ctx.rect(tleft, ttop, wrect, hrect); // border
+      ctx.translate(tleft, ttop);
+      with (ctx) {
+        lineTo(w, h);
+        lineTo(w, 0);
+        lineTo(0, 0);
+        lineTo(0, h/4 - d/2);
+        lineTo(w/2 - d/2, h/4 - d/2);
+        lineTo(w/2 - d/2, h/8);
+        lineTo(w/2 + d/2, h/8);
+        lineTo(w/2 + d/2, h/4 - d/2);
+        lineTo(w/2 + w/4, h/4 - d/2);
+        lineTo(w/2 + w/4, h/4 + d/2);
+        lineTo(w/2 + d/2, h/4 + d/2);
+        lineTo(w/2 + d/2, h/4 + w/4);
+        lineTo(w/2 - d/2, h/4 + w/4);
+        lineTo(w/2 - d/2, h/4 + d/2);
+        lineTo(w/4, h/4 + d/2);
+        lineTo(w/4, h/4 - d/2);
+        lineTo(0, h/4 - d/2);
+        lineTo(0, h/2 + h/4 - d/2);
+        lineTo(w/2 + w/4, h/2 + h/4 - d/2);
+        lineTo(w/2 + w/4, h/2 + h/4 + d/2);
+        lineTo(w/4, h/2 + h/4 + d/2);
+        lineTo(w/4, h/2 + h/4 - d/2);
+        lineTo(0, h/2 + h/4 - d/2);
+        lineTo(0, h);
+      }
       ctx.fillStyle = this.cfg.scalebg;
       ctx.fill();
       ctx.restore();
@@ -437,7 +459,7 @@ function dbCarta(cfg) {
     * Draw obj with COORDS (see paintCartaPts).
     */
     paintCarta: function(coords, ftype, ftext, centerof) {
-      var m = this.reload( {'coords': coords} );
+      var m = this.reload( {'coords': coords, 'centerof': centerof} );
       this.paintCartaPts(m['pts'], ftype, ftext, m['centerofpts']);
     },
     /**
@@ -677,30 +699,59 @@ function dbCarta(cfg) {
     },
     // - events -----------------------------
     onmousemove: function(ev) {
-      if (!ev) return;
       var pts = this.canvasXY(ev);
-      var src = this.fromPoints(pts, false);
-      var dst = this.fromPoints(pts, true);
-      if (this.m.domap)
-        this.doMap(pts);
-      this.paintCoords(dst);
-      if ('onmousemove' in this.clfunc)
-        this.clfunc.onmousemove(src, dst);
+      if (this.m.mimg && this.m.mimg.height > 0 && this.m.mimg.width > 0) { // if img is loaded
+        var ctx = this.getContext('2d');
+        var dx = pts[0] - this.m.mpts[0],
+            dy = pts[1] - this.m.mpts[1];
+        var cx = -this.m.offset[0] - this.m.scaleoff[0] + dx / this.m.scale,
+            cy = -this.m.offset[1] - this.m.scaleoff[1] + dy / this.m.scale;
+        this.clearCarta();
+        ctx.drawImage(this.m.mimg, cx, cy, this.m.mimg.width/this.m.scale, this.m.mimg.height/this.m.scale);
+        this.m.mmove = true;
+      } else {
+        var src = this.fromPoints(pts, false);
+        var dst = this.fromPoints(pts, true);
+        if (this.m.domap)
+          this.doMap(pts);
+        this.paintCoords(dst);
+        if ('onmousemove' in this.clfunc)
+          this.clfunc.onmousemove(src, dst);
+      }
+    },
+    onmousedown: function(ev) {
+      if (!this.isSpherical()) {
+        this.m.mpts = this.canvasXY(ev);
+        // save image for drag
+        this.m.mimg = new Image();
+        this.m.mimg.src = this.toDataURL();
+      }
+    },
+    onmouseup: function(ev) {
+      if (!this.isSpherical()) {
+        var pts = this.canvasXY(ev);
+        var centerof = this.centerOf();
+        this.centerCarta(
+          centerof[0] - pts[0] + this.m.mpts[0],
+          centerof[1] - pts[1] + this.m.mpts[1], true);
+        delete this.m.mimg;
+        this.draw();
+      };
     },
     onclick: function(ev) {
-      if (!ev) return;
       var scale, pts = this.canvasXY(ev);
       if (scale = this.checkScale(pts[0], pts[1])) {
         this.scaleCarta(1); // fix labels
         this.scaleCarta(scale);
       } else if (this.isSpherical()) {
         var dst = this.fromPoints(pts, true);
-        if (dst){
-          var proj = this.initProj();
-          this.initProj(' +h=' + proj.h + ' +lon_0=' + dst[0] + ' +lat_0=' + dst[1]);
-        }
-      } else
+        if (!dst) return;
+        var proj = this.initProj();
+        this.initProj(' +h=' + proj.h + ' +lon_0=' + dst[0] + ' +lat_0=' + dst[1]);
+      } else if (!this.m.mmove)
         this.centerCarta(pts[0], pts[1], true);
+      else
+        return;
       this.draw();
       if ('onclick' in this.clfunc)
         this.clfunc.onclick();
