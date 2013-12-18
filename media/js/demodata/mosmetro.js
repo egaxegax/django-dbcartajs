@@ -1,8 +1,10 @@
-/* List with coords of Moscow Metro lines and stations
-   [[ftype, ftag, coords, label, centerof, ismap],...]
-   Three points with coords and 'Q' literal implements to bezierCurveTo (...) method. */
-
-MLINES = [
+/** 
+ * List with coords of Moscow Metro lines and stations
+ *  [[ftype, ftag, coords, label, centerof, ismap],...]
+ * Three points with coords and 'Q' literal implements to bezierCurveTo (...) method.
+ * egaxegax, 2013
+ */
+var MLINES = [
   ['moskva_canal', 'mc', [
       [-110,29],
       [-113,32,'Q'],[-115,35,'Q'],[-115,39,'Q'],
@@ -203,10 +205,11 @@ MLINES = [
       [92,-77,'Q'],[94.5,-80,'Q'],[98,-80,'Q'],
       [151,-80,'Q'],[155,-80,'Q'],[158,-84,'Q'],
       [158,-84,'Q'],[160,-87,'Q'],[160,-90,'Q'],
+      [160,-90,'Q'],[160,-93,'Q'],[157,-96,'Q'],
+      [136,-117]
     ]
   ],
   ['r7_ext', 'r7', [
-      [160,-90,'Q'],[160,-94,'Q'],[157,-96,'Q'],
       [136,-117,'Q'],[133,-120,'Q'],[133,-124,'Q'],
       [133,-126]
     ]
@@ -284,7 +287,7 @@ MLINES = [
       [80,19,'Q'],[80,15,'Q'],[83,13,'Q'],
       [101,-4,'Q'],[103,-7,'Q'],[103,-11,'Q'],
       [103,-24,'Q'],[103,-27,'Q'],[106,-30,'Q'],
-      [124,-48,'Q'],[124,-52,'Q'],[124,-55,'Q'],
+      [124,-48],[124,-53,'Q'],[124,-55,'Q'],[123,-56,'Q'],
       [76,-113,'Q'],[74,-116,'Q'],[70,-116,'Q'],
       [68,-116]
     ]
@@ -742,7 +745,7 @@ MLINES = [
     ], 'Московский монорельс', [60,-210]
   ]
 ];
-MSTATIONS = [
+var MSTATIONS = [
   ['s1','Ulitsa_Podbelskogo',[[102,85]],'Улица Подбельского',null,1],
   ['s1','Cherkizovskaya',[[94.16,77.15]],'Черкизовская',null,1],
   ['s1','Preobrazhenskaya_Ploshchad',[[86.31,69.31]],'Преображенская площадь',null,1],
