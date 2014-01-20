@@ -1,13 +1,10 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta http-equiv="content-type" content="text/html;charset=utf-8" />
-<title>dbCartajs - HTML5 Canvas map - World's Cities Demo</title>
+{% extends 'base.html' %}
+{% block description %}Города мира. {% endblock %}
+{% block keywords %}города мира, {% endblock %}
+{% block title %}dbCartajs - HTML5 Canvas map - World's Cities Demo{% endblock %}
+{% block script %}
 <script type="text/javascript" src="/media/js/proj4js-combined.js"></script>
 <script type="text/javascript" src="/media/js/dbcarta.js"></script>
 <script type="text/javascript" src="/media/js/demodata/continents.js"></script>
 <script type="text/javascript" src="/media/js/demodata/citiesd.js"></script>
-<script type="text/javascript" src="/media/js/demos/cities.inc.js"></script>
-</head>
-<body onload="init()"></body>
-</html>
+<script type="text/javascript" src="/media/js/demos/cities.inc.js"></script>{% endblock %}
