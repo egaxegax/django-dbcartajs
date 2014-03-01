@@ -1,9 +1,9 @@
 /*
- * dbCartajs HTML5 Canvas dymanic object map v1.4.5
+ * dbCartajs HTML5 Canvas dymanic object map v1.5.1.
  * It uses Proj4js transformations.
  *
  * Initially ported from Python dbCarta project http://dbcarta.googlecode.com/.
- * egax@bk.ru, 2014
+ * egax@bk.ru, 2013
  */
 function dbCarta(cfg) {
   cfg = cfg||{};
@@ -43,8 +43,8 @@ function dbCarta(cfg) {
       viewporty: cfg.viewporty || 90.0,
       scalebg: cfg.scalebg || 'rgba(255,255,255,0.3)',
       mapbg: cfg.mapbg || 'rgba(80,90,100,0.5)',
-      maplabelfg: cfg.maplabelfg || 'rgba(0,0,0,0.8)',
-      maplabelbg: cfg.maplabelbg || 'rgba(190,210,220,0.8)'
+      maplabelfg: cfg.maplabelfg || 'rgba(0,0,0,0.9)',
+      maplabelbg: cfg.maplabelbg || 'rgba(190,210,220,0.9)'
     },
     /**
      * Base Layers
@@ -85,14 +85,17 @@ function dbCarta(cfg) {
       scale: 1,
       offset: [0, 0],
       scaleoff: [0, 0],
-      domap: false,
       doreload: true
     },
     /**
      * Stores
      */ 
-    clfunc: {},
-    mflood: {},
+    clfunc: {}, // callbacks
+    mflood: {}, // obj draw
+    marea: {},  // map area
+    /*
+     * Proj4 defs
+     */
     proj: function(){
       if ('Proj4js' in window){
         return {
@@ -105,6 +108,7 @@ function dbCarta(cfg) {
       }
       return {};
     }(),
+    projload: {},
     project: 0,
     /**
     * Convert pixels to points.
@@ -190,8 +194,8 @@ function dbCarta(cfg) {
     /**
     * Draw obj from mflood on Canvas.
     */
-    draw: function() {
-      this.clearCarta();
+    draw: function(dontclear) {
+      if (!dontclear) this.clearCarta();
       this.paintBound();
       // current view
       var rect = this.viewsizeOf();
@@ -199,7 +203,6 @@ function dbCarta(cfg) {
           right = rect[2], bottom = rect[3];
       if (left < (xlimit = -179.999)) left = xlimit;
       if (top > (ylimit = (this.project == 101 ? 84 : 90))) top = ylimit;
-      this.m.domap = false;
       for (var i in this.mflood) {
         var doreload, m = this.mflood[i];
         if (m['ftype'] == '.Longtitude' && m['centerof']) {
@@ -218,8 +221,8 @@ function dbCarta(cfg) {
             doreload = true;
           }
         }
-        if (m['ismap']) 
-          this.m.domap = true;
+        if (m['ismap'])
+          this.marea[i] = m;
         if (this.m.doreload || doreload)
           this.reload(m);
         this.paintCartaPts(m['pts'], m['ftype'], m['label'], m['centerofpts']);
@@ -237,7 +240,8 @@ function dbCarta(cfg) {
       } else {
         var centerof = [0, 0],
             viewcenterof = [0, 0];
-        if ((proj = this.initProj()) !== undefined)
+        var proj = this.initProj();
+        if (proj !== undefined)
           centerof = [ proj.long0 * 180/Math.PI, proj.lat0 * 180/Math.PI ];
         centerof = this.toPoints(centerof, false);
       }
@@ -296,7 +300,8 @@ function dbCarta(cfg) {
           'ismap': ismap
         }
         if (dopaint) {
-          this.m.domap = ismap;
+          if (ismap)
+            this.marea[fkey] = m; // add area map
           this.reload(m); // add points
           this.paintCartaPts(m['pts'], ftype, label, m['centerofpts']);
         }
@@ -304,29 +309,30 @@ function dbCarta(cfg) {
       }
     },
     /**
-    * Refill obj PID in mfood new points of coords.
+    * Refill obj in mfood new points from coords.
     */
     reload: function(m) {
-      var pts = this.approxCoords(m['coords'], true, this.project ? 10 : undefined),
-          centerofpts = this.approxCoords([m['centerof']], true);
+      var pts = this.interpolateCoords(m['coords'], true, this.project ? 10 : undefined),
+          centerofpts = this.interpolateCoords([m['centerof']], true);
       m['pts'] = pts;
       m['centerofpts'] = centerofpts;
       return m;
     },
     /**
-    * Highlight obj under mouse cursor like html MAP.
+    * Highlight obj under mouse cursor like html MAP-AREA.
     */
     doMap: function(pts, ev) {
       if (Number(new Date()) - this.m.tmap < 100) // not so quickly
         return;
       this.m.tmap = Number(new Date());
-      var pid; // current map id
+      var fkey; // current map id
       var ctx = this.getContext('2d');
       var cx = -this.m.offset[0] - this.m.scaleoff[0] + pts[0] / this.m.scale,
           cy = -this.m.offset[1] - this.m.scaleoff[1] + pts[1] / this.m.scale;
       // points func
-      var addpoints = function(self, pid, domap) {
-        var m = self.mflood[pid],
+      var addpoints = function(self, fkey, domap) {
+        if (!fkey) return;
+        var m = self.marea[fkey],
             mopt = self.mopt[m['ftype']],
             msize =  mopt['size']/self.m.scale,
             mwidth = (mopt['width'] || 1) / self.m.scale,
@@ -338,8 +344,9 @@ function dbCarta(cfg) {
           ctx.rect(m['pts'][0][0] - msize/2.0, m['pts'][0][1] - msize/2.0, msize, msize);
         else
           for (var j in m['pts'])
-            ctx.lineTo(m['pts'][j][0], m['pts'][j][1]);
-        if (domap != undefined) {
+            if (self.chkPts( m['pts'][j]))
+              ctx.lineTo(m['pts'][j][0], m['pts'][j][1]);
+        if (domap != undefined && mcolor) {
           ctx.lineWidth = mwidth;
           if (mopt['cls'] == 'Line') {
             ctx.strokeStyle = (domap ? mcolor : mopt['fg']);
@@ -350,6 +357,7 @@ function dbCarta(cfg) {
             ctx.fillStyle = (domap ? mcolor : mopt['bg'] || mopt['fg']);
             ctx.fill();
           } else {
+            ctx.closePath();
             ctx.fillStyle = (domap ? mcolor : mopt['bg']);
             ctx.fill();
             ctx.strokeStyle = mopt['fg'];
@@ -359,51 +367,44 @@ function dbCarta(cfg) {
       }
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      // check ismap
-      if (this.m.pmap) {
-        addpoints(this, this.m.pmap);
-        if (ctx.isPointInPath(cx, cy))
-          pid = this.m.pmap;
-      }
-      // check all
-      if (!pid)
-        for (var i in this.mflood)
-          if (this.mflood[i]['ismap']) {
-            addpoints(this, i);
-            if (ctx.isPointInPath(cx, cy)) {
-              pid = i;
-              break;
-            }
+      if (this.m.pmap) { // check prev ismap
+        if (addpoints(this, this.m.pmap) || ctx.isPointInPath(cx, cy))
+          fkey = this.m.pmap;
+      } else { // check all
+        for (var i in this.marea) {
+          if (addpoints(this, i) || ctx.isPointInPath(cx, cy)) {
+            fkey = i;
+            break;
           }
+        }
+      }
       ctx.restore();
-      if (this.m.pmap != pid) {
+      if (this.m.pmap != fkey) {
         // current
-        if (pid)
-          addpoints(this, pid, true);
+        addpoints(this, fkey, true);
         // restore prev
-        if (this.m.pmap)
-          addpoints(this, this.m.pmap, false);
+        addpoints(this, this.m.pmap, false);
       }
       // label
-      if (pid){
+      if (fkey){
         if (!this.m.lmap) {
           this.m.lmap = document.createElement('div');
+          this.m.lmap.style.zIndex = "10000";
           this.m.lmap.style.color = this.cfg.maplabelfg;
           this.m.lmap.style.backgroundColor = this.cfg.maplabelbg;
           this.m.lmap.style.position = 'absolute';
-//          this.m.lmap.appendChild(document.createTextNode(''));
           this.m.lmap.onmousemove = function(){ this.innerHTML = ''; };
           document.body.appendChild(this.m.lmap);
         }
-        var label = this.mflood[pid]['ftag'] + '<br/>' + this.mflood[pid]['label'];
-        this.m.lmap.innerHTML = label;
+        // ftag + opt.label + opt.desc
+        this.m.lmap.innerHTML = this.marea[fkey]['desc'] || this.marea[fkey]['label'] || this.marea[fkey]['ftag'];
         this.m.lmap.style.left = ev.clientX + window.pageXOffset + 'px';
         this.m.lmap.style.top = ev.clientY + window.pageYOffset - this.m.lmap.offsetHeight*1.2 + 'px';
       } else if (this.m.lmap) {
         document.body.removeChild(this.m.lmap);
         delete this.m.lmap;
       }
-      this.m.pmap = pid;
+      this.m.pmap = fkey;
     },
     /**
     * Draw Sphere radii bounds.
@@ -503,6 +504,7 @@ function dbCarta(cfg) {
     paintCarta: function(coords, ftype, ftext, centerof) {
       var m = this.reload( {'coords': coords, 'centerof': centerof} );
       this.paintCartaPts(m['pts'], ftype, ftext, m['centerofpts']);
+      return m;
     },
     /**
     * Draw obj with POINTS, FTYPE (see mflood) and centre with FTEXT in CENTEROFPTS (see paintCarta).
@@ -511,9 +513,6 @@ function dbCarta(cfg) {
     paintCartaPts: function(pts, ftype, ftext, centerofpts) {
       if (!(ftype in this.mopt))
         return;
-      var chkPts =  function(pts) { // validate pts
-        return (pts && !isNaN(pts[0]) && !isNaN(pts[1]));
-      }
       var m = this.mopt[ftype];
       var msize = (m['size'] || 1) / this.m.scale,
           mwidth = (m['width'] || 1) / this.m.scale,
@@ -532,7 +531,7 @@ function dbCarta(cfg) {
       ctx.beginPath();
       this.setDashLine(m['dash'] || []);
       if (m['cls'] == 'Dot' || m['cls'] == 'Rect') {
-        if (chkPts(pts[0])){
+        if (this.chkPts(pts[0])){
           centerofpts = pts;
           if (m['cls'] == 'Dot')
             ctx.arc(pts[0][0], pts[0][1], msize, 0, Math.PI*2, 0);
@@ -546,7 +545,7 @@ function dbCarta(cfg) {
       } else {
         var mpts = [];
         for (var i in pts) {
-          if (!mpts.length && chkPts(pts[i]))
+          if (!mpts.length && this.chkPts(pts[i]))
             ctx.lineTo(pts[i][0], pts[i][1]);
           if (pts[i][2] == 'Q') {
             mpts.push(pts[i]);
@@ -565,7 +564,7 @@ function dbCarta(cfg) {
         ctx.stroke();
       }
       if (ftext && centerofpts)
-        if (centerofpts.length && chkPts(centerofpts[0])) {
+        if (centerofpts.length && this.chkPts(centerofpts[0])) {
           ctx.fillStyle = mtcolor;
           ctx.textAlign = mtalign;
           ctx.textBaseline = mtbaseline;
@@ -620,8 +619,11 @@ function dbCarta(cfg) {
           this.project = project;
           Proj4js.defs[String(project)] = new_defs;
         }
-        if (String(this.project) in Proj4js.defs)
-          return (new Proj4js.Proj(String(this.project)));
+        if (String(this.project) in Proj4js.defs) {
+          this.projload['epsg:4326'] = new Proj4js.Proj('epsg:4326');
+          this.projload[String(this.project)] = new Proj4js.Proj(String(this.project));
+          return this.projload[String(this.project)];
+        }
       }
     },
     isSpherical: function(project) {
@@ -658,6 +660,12 @@ function dbCarta(cfg) {
       return [ (rect[0] + rect[2]) / 2.0,
                (rect[1] + rect[3]) / 2.0 ];
     },
+    /**
+    * Validate points.
+    */
+    chkPts: function(pts) {
+      return (pts && !isNaN(pts[0]) && !isNaN(pts[1]));
+    },
     // - transforms ------------------------
     toPoints: function(coords, dotransform) {
       var m = coords;
@@ -688,14 +696,14 @@ function dbCarta(cfg) {
     /**
     * Approx. (and convert to points if DOPOINTS) coords with STEP (deg.).
     */
-    approxCoords: function(coords, dopoints, step) {
-      var i, approx_pts = [];
+    interpolateCoords: function(coords, dopoints, step) {
+      var i, interpol_pts = [];
       for (var j in coords) {
         if (!coords[j]) {
           continue;
         } else if (!i || !step) {
           if (pts = (dopoints ? this.toPoints(coords[j], true) : coords[j]))
-            approx_pts.push(pts);
+            interpol_pts.push(pts);
         } else {
           var x = coords[i][0],
               y = coords[i][1],
@@ -710,18 +718,17 @@ function dbCarta(cfg) {
             _x += (x1 - x) / scalestep;
             _y += (y1 - y) / scalestep;
             if (pts = (dopoints ? this.toPoints([_x, _y], true) : [_x, _y]))
-              approx_pts.push(pts);
+              interpol_pts.push(pts);
           }
         }
         i = j;
       }
-      return approx_pts;
+      return interpol_pts;
     },
     transformCoords: function(sourcestr, deststr, coords) {
       if ('Proj4js' in window) {
-        var sourceproj = new Proj4js.Proj(sourcestr);
-        var destproj = new Proj4js.Proj(deststr);
-        destproj.loadProjDefinition();
+        var sourceproj = this.projload[sourcestr],
+            destproj = this.projload[deststr];
         if (destproj.projName == 'longlat') {
           coords[0] = sourceproj.a * coords[0] * Proj4js.common.D2R;
           coords[1] = sourceproj.a * coords[1] * Proj4js.common.D2R;
@@ -755,8 +762,10 @@ function dbCarta(cfg) {
       } else {
         var src = this.fromPoints(pts, false);
         var dst = this.fromPoints(pts, true);
-        if (this.m.domap)
+        for (var i in this.marea) {
           this.doMap(pts, ev);
+          break;
+        }
         this.paintCoords(dst);
         if ('onmousemove' in this.clfunc)
           this.clfunc.onmousemove(src, dst);

@@ -1,7 +1,7 @@
 /**
  * Starry Sky and Solar System Bodies.
  * Source: Marble, libnova, k-map.
- * egax, 2013
+ * egax@bk.ru, 2013
  */
 var MUtil = {
   /**
@@ -152,6 +152,20 @@ var MVector = {
     var ret = [ MUtil.ang180(lonlat[0] * 180/Math.PI),
                 lonlat[1] * 180/Math.PI ];
     return ret;
+  },
+  /**
+  * Return [X,Y] rotated around Z-axis with ANGLE relative to center of CX,CY.
+  */
+  rotateZ: function(x, y, angle, cx, cy) {
+    var roll = angle * Math.PI/180,
+        r = Math.sqrt((cx - x) * (cx - x) + (y - cy) * (y - cy));
+    if (r > 0) {
+        var a = Math.acos((cx - x) / r);
+        if (y < cy) a = 2.0 * Math.PI - a;
+        coords = [ cx - r * Math.cos(roll + a),
+                   cy + r * Math.sin(roll + a) ];
+    }
+    return coords;
   }
 };
 var MGeo = {
@@ -189,7 +203,20 @@ var MGeo = {
     }
   },
   /**
-  * Circle points on sphere.
+  * Circle coords.
+  */
+  circle2poly: function(x, y, radius, col_vertex){
+    var anglestep = 2.0*Math.PI / col_vertex,
+        pts = [];
+    if (Math.abs(radius) <= this.EPS) return pts;
+    for (var i=0; i<=col_vertex; i++){
+      pts.push([ x - radius * Math.cos(i * anglestep), 
+                 y + radius * Math.sin(i * anglestep) ]);
+    }
+    return pts;
+  },
+  /**
+  * Circle coords on sphere.
   */
   circle1spheric: function(x, y, radius, col_vertex){
     // latitude 90
@@ -427,9 +454,13 @@ var Starry = {
     earthRadius,  // degrees
     centerx,      // degrees
     centery,      // degrees
-    time          // array date/time UTC
+    time,         // array date/time UTC
+    darkhide,
+    outhide
     ){
 
+    darkhide = (darkhide == undefined || darkhide);
+    outhide = (outhide == undefined || outhide);
     var left = viewport[0], top = viewport[1],
         right = viewport[2], bottom = viewport[3];
     var cx = centerx * Math.PI/180,
@@ -443,7 +474,7 @@ var Starry = {
     var mstars = [];
     for(var i in starsdata) {
       var d = starsdata[i], size;
-      if (d.length < 8) // hd
+      if (d.length < 6) // hd
         var ra = d[0], dec = d[1], mag = d[2], hip = d[3], label = d[4];
       else // tycho
         var ra = d[0], dec = d[1], mag = d[6], hip = d[5], label = d[7];
@@ -458,18 +489,18 @@ var Starry = {
           py = y * skyRadius;
       
       // darkside
-      if ( z < 0 && ( (px * px + py * py) < (earthRadius * earthRadius) ) )
+      if ( darkhide && (z < 0 && ((px * px + py * py) < (earthRadius * earthRadius))) )
           continue;
 
       // outside
-      if ( (px < left || px >= right) || (py > top || py <= bottom) )
+      if ( outhide && ((px < left || px >= right) || (py > top || py <= bottom)) )
           continue;
 
       // star size
       if ( mag < 7 ) size = 7.0 - mag;
       else size = 1.0;
 
-      mstars.push([ [[px, py]], size, label ]);
+      mstars.push([ [[px, py]], size, label, hip, {hip: hip, label: label, ra: ra, dec: dec} ]);
     }
     return mstars;
   },
@@ -483,7 +514,8 @@ var Starry = {
     earthRadiusM, // meters
     centerx,      // degrees
     centery,      // degrees
-    time          // array date/time GMT
+    time,         // array date/time GMT
+    darkhide
     ){
 
     var left = viewport[0], top = viewport[1],
@@ -510,12 +542,12 @@ var Starry = {
           py = y * skyRadius;
       
       // darkside
-      if ( z < 0 && ( (px * px + py * py) < (earthRadius * earthRadius) ) )
+      if ( darkhide && (z < 0 && ((px * px + py * py) < (earthRadius * earthRadius))) )
           continue;
 
       // outside
-      //if ( (px < left || px >= right) || (py > top || py <= bottom) )
-      //    continue;
+//      if ( (px < left || px >= right) || (py > top || py <= bottom) )
+//          continue;
 
       if ( i == 0 ) // label
         labels.push([ [[px, py]] ]);
@@ -618,7 +650,7 @@ var Solar = {
         i = 0.0,                                       // incl.
         w = MUtil.ang360(282.9404 + 4.70935E-5 * d),   // arg.perig.
         a = 1.000000,                                  // average distance from the Sun (a.u.)
-        e = 0.016709 - 1.151E-9 * d,                   // эксцентриситет
+        e = 0.016709 - 1.151E-9 * d,                   // essentricity
         M = MUtil.ang360(356.0470 + 0.9856002585 * d); // mean anomaly
     // mean longtitude
     var L = MUtil.ang360(w + M);
@@ -767,13 +799,22 @@ var Solar = {
   loadPlanets: function(time) {
     var d = this.timeScale(time);
     var mplanets = [];
-    var planets = ['Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
-    for(var i in planets) {
-      var ps = eval("this." + planets[i] + "(d)"),
+    var pos = {
+      Mercury: this.Mercury(d),
+      Venus: this.Venus(d), 
+      Mars: this.Mars(d), 
+      Jupiter: this.Jupiter(d), 
+      Saturn: this.Saturn(d), 
+      Uranus: this.Uranus(d), 
+      Neptune: this.Neptune(d)
+    };
+    for(var i in pos) {
+      var ps = pos[i],
           ecl = this.ecl_helio2geo(ps[0], ps[1], ps[2], ps[3], d),
+          ecl = this.ecl2eq(ecl[0], ecl[1], ecl[2], d),
           eq = MVector.rect2spheric(ecl[0], ecl[1], ecl[2]);
-      mplanets.push([ MUtil.ang360(eq[0] * 180/Math.PI) * Math.PI/180, eq[1], 2, planets[i], planets[i] ]);
-    }    
+      mplanets.push([ MUtil.ang360(eq[0] * 180/Math.PI) * Math.PI/180, eq[1], 2, i, i ]);
+    }
     return mplanets;
   }
 }
