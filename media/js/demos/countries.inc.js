@@ -129,14 +129,15 @@ function init() {
 
   dw = new dbCarta({id:'canvasmap'});
   dw.extend(dw.mopt, {
-    'Area': {fg: 'white', bg: 'transparent'}
+    'Area': {fg: 'yellow', bg: 'transparent', labelcolor: 'white'}
   });
   dw.cfg.mapbg = undefined; // no draw map area
   // worldmap image
   var im = new Image();
-  im.src = IMGB64['worldmap'];
+  im.src = '/media/img/wrld-small.jpg';
   im.onload = function() {
-    dw.loadCarta([{0:'.Image', 1:'1', 2:[[-179.99,90],[179.99,-90]], 6:im}]);
+    dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-180,90],[180,-90]], 6:this}]);
+    dw4.m.bgimg = dw.mflood['.Image_wrld']; // mark as bg
     dw.loadCarta(dw.createMeridians());
     dw.draw();
   }
@@ -152,12 +153,20 @@ function init() {
   dw3.loadCarta(dw3.createMeridians());
   dw3.draw();
   dw4 = new dbCarta({id:'canvasmap4'});
+  dw4.extend(dw4.mopt, {
+    'Area': {fg: 'yellow', bg: 'transparent', labelcolor: 'white'}
+  });
   dw4.changeProject(101);
-  dw4.loadCarta(CONTINENTS);
-  dw4.loadCarta(dw4.createMeridians());
-  dw4.draw();
+  // worldmap image
+  var im4 = new Image();
+  im4.src = '/media/img/wrld-small-merc.jpg';
+  im4.onload = function() {
+    dw4.loadCarta([{0:'.Image', 1:'wrld-merc', 2:[[-179.99,84],[179.99,-84]], 6:this}]);
+    dw4.m.bgimg = dw.mflood['.Image_wrld-merc']; // mark as bg
+    dw4.loadCarta(dw.createMeridians());
+    dw4.draw();
+  }  
   delete CONTINENTS;
-
   for (var cntryname in COUNTRIES) {
     el = document.createElement('optgroup');
     el.label = cntryname;

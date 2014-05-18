@@ -1,5 +1,5 @@
 /*
- * dbCartajs HTML5 Canvas dymanic object map v1.6.
+ * dbCartajs HTML5 Canvas dymanic object map v1.6.3.
  * It uses Proj4js transformations.
  *
  * Initially ported from Python dbCarta project http://dbcarta.googlecode.com/.
@@ -29,8 +29,8 @@ function dbCarta(cfg) {
   };
   dw.extend({
     /**
-     * Public
-     * cfg - config {
+     * Config.
+     * cfg {
      *   pid: parent id
      *   width, height: canvas size
      *   viewportx, viewporty: offset limits for centerCarta in degrees
@@ -40,14 +40,14 @@ function dbCarta(cfg) {
      */
     cfg: {
       viewportx: cfg.viewportx || 180.0,
-      viewporty: cfg.viewporty || 90.0,
+      viewporty: cfg.viewporty || 150.0,
       scalebg: cfg.scalebg || 'rgba(255,255,255,0.3)',
       mapbg: cfg.mapbg || 'rgba(80,90,100,0.5)',
       maplabelfg: cfg.maplabelfg || 'rgba(0,0,0,0.9)',
       maplabelbg: cfg.maplabelbg || 'rgba(190,210,220,0.9)'
     },
     /**
-     * Base Layers
+     * Base Layers.
      * Options {
      *   cls:  type {Polygon|Line|Dot|Rect}
      *   fg: : color (stroke)
@@ -60,7 +60,7 @@ function dbCarta(cfg) {
      *   labelcolor
      *   labelscale: text scalable [0|1]
      *   anchor: text pos [textAlign, textBaseline]
-     *   rotate: text rotate
+     *   rotate: text rotate angle
      * }
      */
     mopt: {
@@ -71,13 +71,17 @@ function dbCarta(cfg) {
       '.WaterLine': {cls: 'Line', fg: 'rgb(186,196,205)'},
       '.Latitude':  {cls: 'Line', fg: 'rgb(164,164,164)', anchor: ['start', 'bottom']},
       '.Longtitude':{cls: 'Line', fg: 'rgb(164,164,164)', anchor: ['start', 'top']},
-      'DotPort':    {cls: 'Dot', fg: 'rgb(240,220,0)', anchor: ['start', 'middle'], size: 2},
+      'DotPort':    {cls: 'Dot', fg: 'rgb(240,220,0)', anchor: ['start', 'middle'], size: 2, labelcolor: 'rgb(255,155,128)'},
       'Area':       {cls: 'Polygon', fg: 'rgb(0,80,170)', bg: 'rgb(0,80,170)'},
       'Line':       {cls: 'Line', fg: 'rgb(0,130,200)'},
       'DashLine':   {cls: 'Line', fg: 'rgba(0,0,0,0.2)', dash: [1,2]}
     },
     /**
-     * Private
+     * Vars store.
+     * User defines {
+     *   marea - area info {ftype, ftag, pts, desc} for doMap
+     *   bgimg - bg image for drag (mflood ref)
+     * }
      */
     m: {
       delta: dw.width / 360.0,
@@ -87,6 +91,7 @@ function dbCarta(cfg) {
       offset: [0, 0],
       scaleoff: [0, 0],
       doreload: true
+      // marea tmap pmap lmap bgimg mimg
     },
     /**
      * Stores
@@ -180,15 +185,17 @@ function dbCarta(cfg) {
     chkScale: function(cx, cy) {
       var cw = this.width,
           ch = this.height,
-          h = ch/5,
+          h = ch/6,
           w = h/2,
           tleft = cw - w - w/10,
           ttop = ch/2 - h/2;
       var zoom = (this.m.scale < 1 ? 2-1/this.m.scale : this.m.scale);
-      if (cx > tleft && cx < tleft + w && cy > ttop && cy < ttop + h/2.0) {
-        if (zoom < 50) zoom += 0.5;
+      if (cx > tleft && cx < tleft + w && cy > ttop + h/2.0 - w/6 && cy < ttop + h/2.0 + w/6) {
+        zoom = 1; // home
+      } else if (cx > tleft && cx < tleft + w && cy > ttop && cy < ttop + h/2.0) {
+        if (zoom < 50) zoom += 0.5; // plus
       } else if (cx > tleft && cx < tleft + w && cy > ttop + h/2.0 && cy < ttop + h) {
-        if (zoom > -18) zoom -= 0.5;
+        if (zoom > -18) zoom -= 0.5; // minus
       } else return;
       return (zoom > 1 ? zoom : 1/(2-zoom));
     },
@@ -226,7 +233,7 @@ function dbCarta(cfg) {
           this.marea[i] = m;
         if (this.m.doreload || doreload)
           this.reload(m);
-        if (m['img'])
+        if (m['ftype'] == '.Image')
           this.paintImage(m['img'], m['pts']);
         else
           this.paintCartaPts(m['pts'], m['ftype'], m['label'], m['centerofpts']);
@@ -238,19 +245,24 @@ function dbCarta(cfg) {
     * Change project to NEW_PROJECT and center by visible centre.
     */
     changeProject: function(new_project) {
-      if (this.isSpherical(new_project)) {
-        var centerof = this.centerOf(),
-            viewcenterof = this.viewcenterOf();
-      } else {
-        var centerof = [0, 0],
-            viewcenterof = [0, 0];
+      // curr. centerof
+      var centerof = this.centerOf();
+      if (this.isSpherical()) {
         var proj = this.initProj();
-        if (proj !== undefined)
-          centerof = [ proj.long0 * 180/Math.PI, proj.lat0 * 180/Math.PI ];
-        centerof = this.toPoints(centerof, false);
+        viewcenterof = [ proj.long0 * 180/Math.PI, proj.lat0 * 180/Math.PI ];
+      } else {
+        var viewcenterof = this.fromPoints(centerof, true);
       }
-      this.centerCarta(centerof[0] + this.m.offset[0], centerof[1] + this.m.offset[1]);
-      this.initProj(new_project, ' +lon_0=' + viewcenterof[0] + ' +lat_0=' + viewcenterof[1]);
+      // new centerof
+      if (this.isSpherical(new_project)) {
+        this.centerCarta(centerof[0] + this.m.offset[0], centerof[1] + this.m.offset[1]);
+        this.initProj(new_project, ' +lon_0=' + viewcenterof[0] + ' +lat_0=' + viewcenterof[1]);
+      } else {
+        this.initProj(new_project, ' +lon_0=0 +lat_0=0');
+        var centerof = this.toPoints(viewcenterof, true);
+        if (!this.chkPts(centerof)) centerof = [0, 0];
+        this.centerCarta(centerof[0] + this.m.offset[0], centerof[1] + this.m.offset[1]);
+      }
     },
     /**
     * Center map by points CX,CY. Use DOSCALE for mouse points.
@@ -281,9 +293,20 @@ function dbCarta(cfg) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.width, this.height);
       ctx.restore();
+      delete this.m.imgcrd;
     },
     /**
     * Add obj. info from DATA to mflood store.
+    * DATA [[
+    *   0 - ftype
+    *   1 - ftag
+    *   2 - coords [[x0,y0],[x1,y1],...]
+    * Optional:  
+    *   3 - label
+    *   4 - centerof [x,y]
+    *   5 - ismap 0|1
+    *   6 - img (href | base64)
+    * ],...]
     */
     loadCarta: function(data, dopaint) {
       for (var i in data) {
@@ -309,7 +332,7 @@ function dbCarta(cfg) {
           if (m['ismap'])
             this.marea[fkey] = m; // add area map
           this.reload(m); // add points
-          if (m['img'])
+          if (m['ftype'] == '.Image')
             this.paintImage(m['img'], m['pts']);
           else
             this.paintCartaPts(m['pts'], m['ftype'], m['label'], m['centerofpts']);
@@ -340,10 +363,11 @@ function dbCarta(cfg) {
           cy = -this.m.offset[1] - this.m.scaleoff[1] + pts[1] / this.m.scale;
       // points func
       var addpoints = function(self, fkey, domap) {
-        if (!fkey) return;
-        var m = self.marea[fkey],
-            mopt = self.mopt[m['ftype']],
-            msize =  mopt['size']/self.m.scale,
+        var m = self.marea[fkey];
+        if (!m) return;
+        var mopt = self.mopt[m['ftype']];
+        if (!mopt) return;
+        var msize =  mopt['size']/self.m.scale,
             mwidth = (mopt['width'] || 1) / self.m.scale,
             mcolor = self.cfg.mapbg;
         ctx.beginPath();
@@ -448,7 +472,9 @@ function dbCarta(cfg) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       var wcrd = ctx.measureText('X 0000.00 X 0000.00').width,
           hcrd = ctx.measureText('X').width * 2;
-      ctx.clearRect(cw - wcrd, ch - hcrd, wcrd, hcrd);
+      if (!this.m.imgcrd)
+        this.m.imgcrd = ctx.getImageData(cw - wcrd, ch - hcrd, wcrd, hcrd);
+      ctx.putImageData(this.m.imgcrd, cw - wcrd, ch - hcrd);
       if (coords) {
         ctx.textBaseline = 'bottom';
         ctx.textAlign = 'end';
@@ -463,46 +489,55 @@ function dbCarta(cfg) {
     paintScale: function() {
       var cw = this.width,
           ch = this.height,
-          h = ch/5,
+          h = ch/6,
           w = h/2,
           tleft = cw - w - w/10,
           ttop = ch/2 - h/2,
-          d = w/18; // + - size
+          d = w/10; // + - size
       var cols = 20, // arc col vertex
           anglestep = Math.PI/cols;
+      var mx, my; // last pos
       var ctx = this.getContext('2d');
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.beginPath(); // + -
-      ctx.translate(tleft, ttop);
-      with (ctx) {
-        lineTo(w, h);
-        lineTo(w, h/4 - d/2);
-        for (var i = 0; i <= cols; i++)
-          lineTo(w/2 + w/2 * Math.cos(i * anglestep), h/4 - d/2 - w/2 * Math.sin(i * anglestep));
-        lineTo(0, h/4 - d/2);
+      // print zoom
+      ctx.textBaseline = 'bottom';
+      ctx.textAlign = 'start';
+      ctx.fillStyle = 'black';
+      ctx.fillText('1 : ' + this.m.scale + 'X', 0, ch);
+      with (ctx) { // + h -
+        beginPath();
+        translate(tleft, ttop);
+        for (var i = -6; i <= cols + 6; i++) // plus round
+          lineTo(mx = (w/2 + w/2 * Math.cos(i * anglestep)), my = (h/4 - w/2 * Math.sin(i * anglestep)));
+        lineTo(w/2 - w/5, h/4 - d/2);
         lineTo(w/2 - d/2, h/4 - d/2);
-        lineTo(w/2 - d/2, h/8);
-        lineTo(w/2 + d/2, h/8);
+        lineTo(w/2 - d/2, h/4 - w/5);
+        lineTo(w/2 + d/2, h/4 - w/5);
         lineTo(w/2 + d/2, h/4 - d/2);
-        lineTo(w/2 + w/4, h/4 - d/2);
-        lineTo(w/2 + w/4, h/4 + d/2);
+        lineTo(w/2 + w/5, h/4 - d/2);
+        lineTo(w/2 + w/5, h/4 + d/2);
         lineTo(w/2 + d/2, h/4 + d/2);
-        lineTo(w/2 + d/2, h/4 + w/4);
-        lineTo(w/2 - d/2, h/4 + w/4);
+        lineTo(w/2 + d/2, h/4 + w/5);
+        lineTo(w/2 - d/2, h/4 + w/5);
         lineTo(w/2 - d/2, h/4 + d/2);
-        lineTo(w/4, h/4 + d/2);
-        lineTo(w/4, h/4 - d/2);
-        lineTo(0, h/4 - d/2);
-        lineTo(0, h/2 + h/4 - d/2);
-        lineTo(w/2 + w/4, h/2 + h/4 - d/2);
-        lineTo(w/2 + w/4, h/2 + h/4 + d/2);
-        lineTo(w/4, h/2 + h/4 + d/2);
-        lineTo(w/4, h/2 + h/4 - d/2);
-        lineTo(0, h/2 + h/4 - d/2);
-        for (var i = 0; i <= cols; i++)
-          lineTo(w/2 - w/2 * Math.cos(i * anglestep), h/2 + h/4 - d/2 + w/2 * Math.sin(i * anglestep));
-        }
+        lineTo(w/2 - w/5, h/4 + d/2);
+        lineTo(w/2 - w/5, h/4 - d/2);
+        lineTo(mx, my);
+        for (var i = -6; i <= -6; i++)
+          lineTo(w/2 - w/2 * Math.cos(i * anglestep), h/2 + h/4 + w/2 * Math.sin(i * anglestep));
+        lineTo(w/2 - w/5, h/2 + h/4 - d/2);
+        lineTo(w/2 + w/5, h/2 + h/4 - d/2);
+        lineTo(w/2 + w/5, h/2 + h/4 + d/2);
+        lineTo(w/2 - w/5, h/2 + h/4 + d/2);
+        lineTo(w/2 - w/5, h/2 + h/4 - d/2);
+        for (var i = -6; i <= cols + 6; i++) // minus round
+          lineTo(mx = (w/2 - w/2 * Math.cos(i * anglestep)), my = (h/2 + h/4 + w/2 * Math.sin(i * anglestep)));
+        for (var i = 0; i <= cols; i++) // home round
+          lineTo(w/2 + w/6 * Math.cos(i * 2.0 * anglestep), h/2 + w/6 * Math.sin(i * 2.0 * anglestep));
+        lineTo(mx, my);
+        closePath();
+      }
       ctx.fillStyle = this.cfg.scalebg;
       ctx.fill();
       ctx.restore();
@@ -598,7 +633,7 @@ function dbCarta(cfg) {
     * Draw image IMG if loaded with sizes in PTS.
     */
     paintImage: function(img, pts) {
-      if (this.chkImg(img)) {
+      if (this.chkImg(img) && pts) {
         var ctx = this.getContext('2d');
         if (this.chkPts(pts[0]) && this.chkPts(pts[1])) { // scalable
           if (!this.isSpherical())
@@ -617,7 +652,7 @@ function dbCarta(cfg) {
       var centerof = this.centerOf();
       var ratio = scale/this.m.scale;
       ctx.scale(ratio, ratio);
-      var cx = centerof[0]/ratio - centerof[0];
+      var cx = centerof[0]/ratio - centerof[0],
           cy = centerof[1]/ratio - centerof[1];
       var offx = this.m.offset[0] - this.m.offset[0]/ratio,
           offy = this.m.offset[1] - this.m.offset[1]/ratio;
@@ -775,13 +810,17 @@ function dbCarta(cfg) {
     onmousemove: function(ev) {
       var pts = this.canvasXY(ev);
       if (this.chkImg(this.m.mimg)) { // if img is loaded
-        var ctx = this.getContext('2d');
-        var dx = pts[0] - this.m.mpts[0],
-            dy = pts[1] - this.m.mpts[1];
-        var cx = -this.m.offset[0] - this.m.scaleoff[0] + dx / this.m.scale,
-            cy = -this.m.offset[1] - this.m.scaleoff[1] + dy / this.m.scale;
+        var dx = (pts[0] - this.m.mpts[0]) / this.m.scale,
+            dy = (pts[1] - this.m.mpts[1]) / this.m.scale;
         this.clearCarta();
-        ctx.drawImage(this.m.mimg, cx, cy, this.m.mimg.width/this.m.scale, this.m.mimg.height/this.m.scale);
+        if (this.m.bgimg) { // bg img
+          if (this.m.bgimg.pts && this.chkPts(this.m.bgimg.pts[0]) && this.chkPts(this.m.bgimg.pts[1]))
+            this.paintImage(this.m.mimg, [[dx, dy + this.m.bgimg.pts[0][1]], [dx + this.m.bgimg.pts[1][0], dy + this.m.bgimg.pts[1][1]]]);
+        } else { // snapshot
+          var cx = -this.m.offset[0] - this.m.scaleoff[0] + dx,
+              cy = -this.m.offset[1] - this.m.scaleoff[1] + dy;
+          this.paintImage(this.m.mimg, [[cx, cy], [cx + this.m.mimg.width/this.m.scale, cy + this.m.mimg.height/this.m.scale]]);
+        }
         this.m.mmove = true;
       } else {
         var src = this.fromPoints(pts, false),
@@ -800,8 +839,12 @@ function dbCarta(cfg) {
       this.m.mscale = this.chkScale(pts[0], pts[1]);
       if (!this.m.mscale && !this.isSpherical()) {
         this.m.mpts = pts;
-        this.m.mimg = new Image(); // save image for drag
-        this.m.mimg.src = this.toDataURL();
+        if (this.m.bgimg) {
+          this.m.mimg = this.m.bgimg.img; // bg img from mflood
+        } else {
+          this.m.mimg = new Image(); // snapshot for drag
+          this.m.mimg.src = this.toDataURL();
+        }
       }
     },
     onmouseup: function(ev) {
