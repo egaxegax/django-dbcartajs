@@ -1,5 +1,5 @@
 /*
- * dbCartajs HTML5 Canvas dymanic object map v1.6.3.
+ * dbCartajs HTML5 Canvas dymanic object map v1.6.5.
  * It uses Proj4js transformations.
  *
  * Initially ported from Python dbCarta project http://dbcarta.googlecode.com/.
@@ -34,17 +34,15 @@ function dbCarta(cfg) {
      *   pid: parent id
      *   width, height: canvas size
      *   viewportx, viewporty: offset limits for centerCarta in degrees
-     *   scalebg: bgcolor for paintScale
-     *   mapbg, maplabelfg, maplabelfg: colors for doMap
+     *   scalebg: bgcolor for paintBar
+     *   mapbg: bgcolor for doMap
      * }
      */
     cfg: {
       viewportx: cfg.viewportx || 180.0,
       viewporty: cfg.viewporty || 150.0,
       scalebg: cfg.scalebg || 'rgba(255,255,255,0.3)',
-      mapbg: cfg.mapbg || 'rgba(80,90,100,0.5)',
-      maplabelfg: cfg.maplabelfg || 'rgba(0,0,0,0.9)',
-      maplabelbg: cfg.maplabelbg || 'rgba(190,210,220,0.9)'
+      mapbg: cfg.mapbg || 'rgba(80,90,100,0.5)'
     },
     /**
      * Base Layers.
@@ -91,7 +89,7 @@ function dbCarta(cfg) {
       offset: [0, 0],
       scaleoff: [0, 0],
       doreload: true
-      // marea tmap pmap lmap bgimg mimg
+      // marea tmap pmap bgimg mimg
     },
     /**
      * Stores
@@ -182,22 +180,57 @@ function dbCarta(cfg) {
       return lonlat;
     },
     // ----------------------------------
-    chkScale: function(cx, cy) {
+    /**
+     * Check click on right bar and do action.
+     */
+    chkBar: function(cx, cy, doaction) {
       var cw = this.width,
           ch = this.height,
           h = ch/6,
           w = h/2,
           tleft = cw - w - w/10,
-          ttop = ch/2 - h/2;
-      var zoom = (this.m.scale < 1 ? 2-1/this.m.scale : this.m.scale);
-      if (cx > tleft && cx < tleft + w && cy > ttop + h/2.0 - w/6 && cy < ttop + h/2.0 + w/6) {
-        zoom = 1; // home
-      } else if (cx > tleft && cx < tleft + w && cy > ttop && cy < ttop + h/2.0) {
-        if (zoom < 50) zoom += 0.5; // plus
-      } else if (cx > tleft && cx < tleft + w && cy > ttop + h/2.0 && cy < ttop + h) {
-        if (zoom > -18) zoom -= 0.5; // minus
-      } else return;
-      return (zoom > 1 ? zoom : 1/(2-zoom));
+          ttop = ch/2 - h/2,
+          d = w/10;
+      var mx = cx - tleft,
+          my = cy - (ttop - h + h/4);
+      if (mx > 0 && mx < w && my > 0 && my < h/2) { // moves
+        var sx = cw/100,
+            sy = ch/100, moves = [0, 0];
+        if (my > 0 && my < 3*d) {
+          moves = [0, sy]; // up
+        } else if (mx > 0 && mx < 3*d) {
+          moves = [sx, 0]; // left
+        } else if (mx > w - 3*d && mx < w) {
+          moves = [-sx, 0]; // right
+        } else if (my > h/2 - 3*d && my < h/2) {
+          moves = [0, -sy]; // down
+        } else if (mx > 4*d && mx < w - 4*d && my > 4*d && my < h/2 - 4*d) { // center
+          moves = [-this.m.offset[0], -this.m.offset[1]];
+        }
+        if (!doaction) return 1;
+        if (this.isSpherical()) {
+          var proj = dw.initProj();
+          this.initProj(' +lon_0=' + (proj.long0 * 180/Math.PI + moves[0]) + ' +lat_0=' + (proj.lat0 * 180/Math.PI + moves[1]));
+        } else {
+          var centerof = this.centerOf();
+          this.centerCarta(centerof[0] - moves[0], centerof[1] - moves[1], true);
+        }
+      }
+      var my = cy - ttop;
+      if (mx > 0 && mx < w && my > 0 && my < h) { // zoom
+        var zoom = (this.m.scale < 1 ? 2 - 1/this.m.scale : this.m.scale);
+        if (my > h/2 - w/6 && my < h/2 + w/6) {
+          zoom = 1; // home
+        } else if (my > 0 && my < h/2) {
+          if (zoom < 50) zoom += 0.5; // plus
+        } else if (my > h/2 && my < h) {
+          if (zoom > -18) zoom -= 0.5; // minus
+        }
+        if (!doaction) return 1;
+        zoom = (zoom > 1 ? zoom : 1/(2-zoom));
+        this.scaleCarta(1); // fix labels
+        this.scaleCarta(zoom);
+      }
     },
     /**
     * Draw obj from mflood on Canvas.
@@ -207,8 +240,8 @@ function dbCarta(cfg) {
       this.paintBound();
       // current view
       var rect = this.viewsizeOf();
-      var left = rect[0], top = rect[1],
-          right = rect[2], bottom = rect[3];
+      var left = rect[0], top = rect[1], right = rect[2], bottom = rect[3];
+      var xlimit, ylimit;
       if (left < (xlimit = -179.999)) left = xlimit;
       if (top > (ylimit = (this.project == 101 ? 84 : 90))) top = ylimit;
       for (var i in this.mflood) {
@@ -239,7 +272,7 @@ function dbCarta(cfg) {
           this.paintCartaPts(m['pts'], m['ftype'], m['label'], m['centerofpts']);
       }
       this.m.doreload = false;
-      this.paintScale();
+      this.paintBar();
     },
     /**
     * Change project to NEW_PROJECT and center by visible centre.
@@ -293,7 +326,6 @@ function dbCarta(cfg) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.width, this.height);
       ctx.restore();
-      delete this.m.imgcrd;
     },
     /**
     * Add obj. info from DATA to mflood store.
@@ -352,8 +384,9 @@ function dbCarta(cfg) {
     },
     /**
     * Highlight obj under mouse cursor like html MAP-AREA.
+    * Use ONMOUSEMOVE callback in your script to show div with info.
     */
-    doMap: function(pts, ev) {
+    doMap: function(pts) {
       if (Number(new Date()) - this.m.tmap < 100) // not so quickly
         return;
       this.m.tmap = Number(new Date());
@@ -374,7 +407,7 @@ function dbCarta(cfg) {
         if (mopt['cls'] == 'Dot' && self.chkPts(m['pts'][0]))
           ctx.arc(m['pts'][0][0], m['pts'][0][1], msize, 0, Math.PI*2, 0);
         else if (mopt['cls'] == 'Rect' && self.chkPts(m['pts'][0]))
-            ctx.rect(m['pts'][0][0] - msize/2.0, m['pts'][0][1] - msize/2.0, msize, msize);
+          ctx.rect(m['pts'][0][0] - msize/2.0, m['pts'][0][1] - msize/2.0, msize, msize);
         else
           for (var j in m['pts'])
             if (self.chkPts(m['pts'][j]))
@@ -413,29 +446,8 @@ function dbCarta(cfg) {
       }
       ctx.restore();
       if (this.m.pmap != fkey) {
-        // current
-        addpoints(this, fkey, true);
-        // restore prev
-        addpoints(this, this.m.pmap, false);
-      }
-      // label
-      if (fkey){
-        if (!this.m.lmap) {
-          this.m.lmap = document.createElement('div');
-          this.m.lmap.style.backgroundColor = this.cfg.maplabelbg;
-          this.m.lmap.style.color = this.cfg.maplabelfg;
-          this.m.lmap.style.position = 'absolute';
-          this.m.lmap.style.zIndex = '10000';
-          this.m.lmap.onmousemove = function(){ this.innerHTML = ''; };
-          document.body.appendChild(this.m.lmap);
-        }
-        // ftag + opt.label + opt.desc
-        this.m.lmap.innerHTML = this.marea[fkey]['desc'] || this.marea[fkey]['label'] || this.marea[fkey]['ftag'];
-        this.m.lmap.style.left = ev.clientX + window.pageXOffset + 'px';
-        this.m.lmap.style.top = ev.clientY + window.pageYOffset - this.m.lmap.offsetHeight*1.2 + 'px';
-      } else if (this.m.lmap) {
-        document.body.removeChild(this.m.lmap);
-        delete this.m.lmap;
+        addpoints(this, fkey, true); // current
+        addpoints(this, this.m.pmap, false); // restore prev
       }
       this.m.pmap = fkey;
     },
@@ -443,16 +455,16 @@ function dbCarta(cfg) {
     * Draw Sphere radii bounds.
     */
     paintBound: function() {
-      var ctx = this.getContext('2d');
       var centerof = this.centerOf();
       var ratio, proj = this.initProj();
       // spherical radii
       switch (String(this.project)) {
-        case '201':  ratio = 2.0; break;
+        case '201': ratio = 2.0; break;
         case '202': ratio = Math.sqrt((proj.p15 - 1.0)/(proj.p15 + 1.0)); break;
         case '203': ratio = 1.0; break;
       }
       if (ratio) {
+        var ctx = this.getContext('2d');
         ctx.beginPath();
         ctx.arc(centerof[0], centerof[1], 180/Math.PI * ratio * this.m.delta, 0, Math.PI*2, 0);
         ctx.strokeStyle = this.mopt['.Arctic']['fg'];
@@ -465,16 +477,14 @@ function dbCarta(cfg) {
     * Draw curr. coords in right-bottom corner of map.
     */
     paintCoords: function(coords) {
-      var ctx = this.getContext('2d');
       var cw = this.width,
           ch = this.height;
+      var ctx = this.getContext('2d');
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       var wcrd = ctx.measureText('X 0000.00 X 0000.00').width,
           hcrd = ctx.measureText('X').width * 2;
-      if (!this.m.imgcrd)
-        this.m.imgcrd = ctx.getImageData(cw - wcrd, ch - hcrd, wcrd, hcrd);
-      ctx.putImageData(this.m.imgcrd, cw - wcrd, ch - hcrd);
+      ctx.clearRect(cw - wcrd, ch - hcrd, wcrd, hcrd);
       if (coords) {
         ctx.textBaseline = 'bottom';
         ctx.textAlign = 'end';
@@ -484,9 +494,9 @@ function dbCarta(cfg) {
       ctx.restore();
     },
     /**
-    * Draw zoom scale by right side.
+    * Draw right bar with moves and scale buttons.
     */
-    paintScale: function() {
+    paintBar: function() {
       var cw = this.width,
           ch = this.height,
           h = ch/6,
@@ -500,46 +510,49 @@ function dbCarta(cfg) {
       var ctx = this.getContext('2d');
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      // print zoom
-      ctx.textBaseline = 'bottom';
-      ctx.textAlign = 'start';
-      ctx.fillStyle = 'black';
-      ctx.fillText('1 : ' + this.m.scale + 'X', 0, ch);
-      with (ctx) { // + h -
+      // right bar
+      ctx.fillStyle = this.cfg.scalebg;
+      with (ctx) {
+        // draw scale + h -
+        translate(tleft + w/2, ttop + h/4);
         beginPath();
-        translate(tleft, ttop);
         for (var i = -6; i <= cols + 6; i++) // plus round
-          lineTo(mx = (w/2 + w/2 * Math.cos(i * anglestep)), my = (h/4 - w/2 * Math.sin(i * anglestep)));
-        lineTo(w/2 - w/5, h/4 - d/2);
-        lineTo(w/2 - d/2, h/4 - d/2);
-        lineTo(w/2 - d/2, h/4 - w/5);
-        lineTo(w/2 + d/2, h/4 - w/5);
-        lineTo(w/2 + d/2, h/4 - d/2);
-        lineTo(w/2 + w/5, h/4 - d/2);
-        lineTo(w/2 + w/5, h/4 + d/2);
-        lineTo(w/2 + d/2, h/4 + d/2);
-        lineTo(w/2 + d/2, h/4 + w/5);
-        lineTo(w/2 - d/2, h/4 + w/5);
-        lineTo(w/2 - d/2, h/4 + d/2);
-        lineTo(w/2 - w/5, h/4 + d/2);
-        lineTo(w/2 - w/5, h/4 - d/2);
-        lineTo(mx, my);
+          lineTo(mx = (w/2 * Math.cos(i * anglestep)), my = (-w/2 * Math.sin(i * anglestep)));
+        lineTo(-w/5, -d/2); lineTo(-d/2, -d/2); lineTo(-d/2, -w/5);
+        lineTo(d/2, -w/5);  lineTo(d/2, -d/2);  lineTo(w/5, -d/2);
+        lineTo(w/5, d/2);   lineTo(d/2, d/2);   lineTo(d/2, w/5);
+        lineTo(-d/2, w/5);  lineTo(-d/2, d/2);  lineTo(-w/5, d/2);
+        lineTo(-w/5, -d/2); lineTo(mx, my);
         for (var i = -6; i <= -6; i++)
-          lineTo(w/2 - w/2 * Math.cos(i * anglestep), h/2 + h/4 + w/2 * Math.sin(i * anglestep));
-        lineTo(w/2 - w/5, h/2 + h/4 - d/2);
-        lineTo(w/2 + w/5, h/2 + h/4 - d/2);
-        lineTo(w/2 + w/5, h/2 + h/4 + d/2);
-        lineTo(w/2 - w/5, h/2 + h/4 + d/2);
-        lineTo(w/2 - w/5, h/2 + h/4 - d/2);
+          lineTo(-w/2 * Math.cos(i * anglestep), h/2 + w/2 * Math.sin(i * anglestep));
+        lineTo(-w/5, h/2 - d/2); lineTo(w/5, h/2 - d/2);
+        lineTo(w/5, h/2 + d/2);  lineTo(-w/5, h/2 + d/2);
+        lineTo(-w/5, h/2 - d/2);
         for (var i = -6; i <= cols + 6; i++) // minus round
-          lineTo(mx = (w/2 - w/2 * Math.cos(i * anglestep)), my = (h/2 + h/4 + w/2 * Math.sin(i * anglestep)));
+          lineTo(mx = (-w/2 * Math.cos(i * anglestep)), my = (h/2 + w/2 * Math.sin(i * anglestep)));
         for (var i = 0; i <= cols; i++) // home round
-          lineTo(w/2 + w/6 * Math.cos(i * 2.0 * anglestep), h/2 + w/6 * Math.sin(i * 2.0 * anglestep));
+          lineTo(w/6 * Math.cos(i * 2.0 * anglestep), h/2 - h/4 + w/6 * Math.sin(i * 2.0 * anglestep));
         lineTo(mx, my);
         closePath();
+        fill();
+        // draw moves
+        translate(0, -h + h/4);
+        beginPath();
+        for (var i = 0; i <= cols/2.0 - cols/4.0; i++)
+          lineTo(mx = (w/2 * Math.cos(i * 2.0 * anglestep)), my = (-w/2 * Math.sin(i * 2.0 * anglestep)));
+        lineTo(mx, my + d); lineTo(mx + d, my + d + d); lineTo(mx - d, my + d + d); lineTo(mx, my + d); lineTo(mx, my);
+        for (var i = cols/2.0 - cols/4.0; i <= cols/2.0; i++)
+          lineTo(mx = (w/2 * Math.cos(i * 2.0 * anglestep)), my = (-w/2 * Math.sin(i * 2.0 * anglestep)));
+        lineTo(mx + d, my); lineTo(mx + d + d, my - d); lineTo(mx + d + d, my + d); lineTo(mx + d, my); lineTo(mx, my);
+        for (var i = cols/2.0; i <= cols/2.0 + cols/4.0; i++)
+          lineTo(mx = (w/2 * Math.cos(i * 2.0 * anglestep)), my = (-w/2 * Math.sin(i * 2.0 * anglestep)));
+        lineTo(mx, my - d); lineTo(mx - d, my - d - d); lineTo(mx + d, my - d - d); lineTo(mx, my - d); lineTo(mx, my);
+        for (var i = cols/2.0 + cols/4.0; i <= cols; i++)
+          lineTo(mx = (w/2 * Math.cos(i * 2.0 * anglestep)), my = (-w/2 * Math.sin(i * 2.0 * anglestep)));
+        lineTo(mx - d, my); lineTo(mx - d - d, my + d); lineTo(mx - d - d, my - d); lineTo(mx - d, my); lineTo(mx, my);
+        closePath();
+        fill();
       }
-      ctx.fillStyle = this.cfg.scalebg;
-      ctx.fill();
       ctx.restore();
     },
     /**
@@ -648,14 +661,14 @@ function dbCarta(cfg) {
     * Use twice to fix bug with labels: scaleCarta(1)->scaleCarta(SCALE)
     */
     scaleCarta: function(scale) {
-      var ctx = this.getContext('2d');
       var centerof = this.centerOf();
       var ratio = scale/this.m.scale;
-      ctx.scale(ratio, ratio);
       var cx = centerof[0]/ratio - centerof[0],
           cy = centerof[1]/ratio - centerof[1];
       var offx = this.m.offset[0] - this.m.offset[0]/ratio,
           offy = this.m.offset[1] - this.m.offset[1]/ratio;
+      var ctx = this.getContext('2d');
+      ctx.scale(ratio, ratio);
       ctx.translate(cx + offx, cy + offy);
       this.m.scaleoff = [ cx, cy ];
       this.m.scale = scale;
@@ -809,6 +822,7 @@ function dbCarta(cfg) {
     // - events -----------------------------
     onmousemove: function(ev) {
       var pts = this.canvasXY(ev);
+      if (this.m.mpts) this.m.mmove = true;
       if (this.chkImg(this.m.mimg)) { // if img is loaded
         var dx = (pts[0] - this.m.mpts[0]) / this.m.scale,
             dy = (pts[1] - this.m.mpts[1]) / this.m.scale;
@@ -821,53 +835,62 @@ function dbCarta(cfg) {
               cy = -this.m.offset[1] - this.m.scaleoff[1] + dy;
           this.paintImage(this.m.mimg, [[cx, cy], [cx + this.m.mimg.width/this.m.scale, cy + this.m.mimg.height/this.m.scale]]);
         }
-        this.m.mmove = true;
-      } else {
+      } else { // move only
         var src = this.fromPoints(pts, false),
             dst = this.fromPoints(pts, true);
         for (var i in this.marea) {
-          this.doMap(pts, ev);
+          this.doMap(pts);
           break;
         }
         this.paintCoords(dst);
         if ('onmousemove' in this.clfunc)
-          this.clfunc.onmousemove(src, dst);
+          this.clfunc.onmousemove(src, dst, ev);
       }
     },
     onmousedown: function(ev) {
       var pts = this.canvasXY(ev);
-      this.m.mscale = this.chkScale(pts[0], pts[1]);
-      if (!this.m.mscale && !this.isSpherical()) {
+      if (!(this.m.mbar = this.chkBar(pts[0], pts[1]))) { // if not bar
         this.m.mpts = pts;
-        if (this.m.bgimg) {
-          this.m.mimg = this.m.bgimg.img; // bg img from mflood
+        if (this.isSpherical()) { // proj.center for spherical
+          var proj = this.initProj();
+          this.m.mcenterof = [ proj.long0 * 180/Math.PI, proj.lat0 * 180/Math.PI ];
         } else {
-          this.m.mimg = new Image(); // snapshot for drag
-          this.m.mimg.src = this.toDataURL();
+          if (this.m.bgimg) {
+            this.m.mimg = this.m.bgimg.img; // bg img from mflood
+          } else {
+            this.m.mimg = new Image(); // snapshot for drag
+            this.m.mimg.src = this.toDataURL();
+          }
         }
       }
     },
     onmouseup: function(ev) {
-      var pts = this.canvasXY(ev),
-          scale = this.chkScale(pts[0], pts[1]);
-      if (this.m.mscale && scale) {
-        this.scaleCarta(1); // fix labels
-        this.scaleCarta(scale);
-      } else if (this.isSpherical()) {
-        var dst = this.fromPoints(pts, true);
-        if (!dst) return;
-        var proj = this.initProj();
-        this.initProj(' +h=' + proj.h + ' +lon_0=' + dst[0] + ' +lat_0=' + dst[1]);
+      var pts = this.canvasXY(ev);
+      if (this.m.mbar) {
+        this.chkBar(pts[0], pts[1], true);
       } else if (!this.m.mmove) {
-        this.centerCarta(pts[0], pts[1], true);
-        delete this.m.mimg;
-      } else if (!this.isSpherical()) {
+        if ('afterclick' in this.clfunc)
+          this.clfunc.afterclick();
+      } else {
         var centerof = this.centerOf();
-        this.centerCarta(
+        var mpts = [
           centerof[0] - pts[0] + this.m.mpts[0],
-          centerof[1] - pts[1] + this.m.mpts[1], true);
-        delete this.m.mimg;
-      } else return;
+          centerof[1] - pts[1] + this.m.mpts[1] ];
+        if (this.isSpherical()) {
+          var dst = this.fromPoints(mpts);
+          if (!dst) return;
+          var proj = this.initProj();
+          this.initProj(' +h=' + proj.h + ' +lon_0=' + (this.m.mcenterof[0] + dst[0]) + ' +lat_0=' + (this.m.mcenterof[1] + dst[1]));
+        } else {
+          this.centerCarta(mpts[0], mpts[1], true);
+        }
+      }
+      with (this.m) {
+        delete mcenterof;
+        delete mimg;
+        delete mpts;
+        delete mmove;
+      }
       if ('onclick' in this.clfunc) {
         this.clfunc.onclick();
       } else

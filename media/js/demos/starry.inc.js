@@ -39,9 +39,9 @@ function proj() {
   // worldmap raster image
   var im = new Image();
   if (dw.project == 0)
-    im.src = '/media/img/wrld-small.jpg';
+    im.src = IMGMAP['wrld_small'];
   else if (dw.project == 101)
-    im.src = '/media/img/wrld-small-merc.jpg';
+    im.src = IMGMAP['wrld_small_merc'];
   else {
     scaleheight();
     draw();
@@ -53,6 +53,18 @@ function proj() {
       dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-179.99,84],[179.99,-84]], 6:this}]);
     dw.m.bgimg = dw.mflood['.Image_wrld']; // mark as bg
     draw();
+  }
+}
+// Tooltip under cursor
+function infobox(ev) {
+  var mtip = document.getElementById('maptooltip');
+  if (dw.m.pmap) {
+    mtip.innerHTML = dw.marea[dw.m.pmap]['desc'] || dw.marea[dw.m.pmap]['label'] || dw.marea[dw.m.pmap]['ftag'];
+    mtip.style.display = 'block';
+    mtip.style.left = ev.clientX + window.pageXOffset + 'px';
+    mtip.style.top = ev.clientY + window.pageYOffset - mtip.offsetHeight * 1.2 + 'px';
+  } else {
+    mtip.style.display = 'none';
   }
 }
 // Rotate Sphere on sides
@@ -492,6 +504,17 @@ function init() {
   mtab.appendChild(row);
   document.body.appendChild(mtab);
 
+  // domap tooltip
+  var el = document.createElement('div');
+  el.id = 'maptooltip';
+  el.style.padding = '2px';
+  el.style.backgroundColor = 'rgba(190,210,220,0.7)';
+  el.style.color = 'rgba(0,0,0,0.7)';
+  el.style.position = 'absolute';
+  el.style.zIndex = '10000';
+  el.onmousemove = function(){ this.innerHTML = ''; };
+  document.body.appendChild(el);
+
   dw = new dbCarta({id:'mcol', height:col.offsetHeight});
   // define new layers
   dw.extend(dw.mopt, layers());
@@ -563,7 +586,7 @@ function init() {
   ss.onchange = draw;
   dw.clfunc.onclick = draw;
   // curr. coords
-  dw.clfunc.onmousemove = function(sd, dd) {
+  dw.clfunc.onmousemove = function(sd, dd, ev) {
     var scoords, tcoord = document.getElementById('tcoord');
     if (dw.isSpherical()) {
       if (scoords = calcSpheric(sd, getSelTime())) {
@@ -577,6 +600,7 @@ function init() {
     } else if (dd) {
       tcoord.innerHTML = ' Lon: ' + dd[0].toFixed(2) + ' Lat: ' + dd[1].toFixed(2);
     }
+    infobox(ev);
   }
   // draw
   dw.loadCarta(CONTINENTS);
