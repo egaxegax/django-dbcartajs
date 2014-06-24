@@ -1,7 +1,7 @@
 /**
- * Starry Sky Canvas map v2.0.1.
+ * Starry Sky Canvas map v2.1.1.
  * View stars, constellations, planets, sattelites on Earth background.
- * egax@bk.ru, 2013
+ * egax@bk.ru, 2013-14.
  */
 // list layers in order
 var mopt = {
@@ -27,21 +27,22 @@ function layers() {
   for (var i in mopt) if (!mopt[i]['hide']) m[i] = mopt[i];
   return m;
 }
-// Change proj
-function proj() { 
-  dw.changeProject(document.getElementById('projlist').value);
-  // reset map
-  var centerof = dw.toPoints([0, 0], false);
-  dw.centerCarta(centerof[0] + dw.m.offset[0], centerof[1] + dw.m.offset[1]);
-  dw.scaleCarta(1);
-  dw.scaleCarta( dw.project == 101 ? 0.5 : 1 );
-  dw.style.backgroundColor = dw.isSpherical() ? 'rgb(17,17,96)' : 'rgb(186,196,205)';
-  // worldmap raster image
+// Free bg image
+function freeImg() {
+  delete dw.m.bgimg;
+  delete dw.mflood['.Image_wrld']['img'];
+}
+// Load worldmap raster image
+function loadImg() {
   var im = new Image();
   if (dw.project == 0)
     im.src = IMGMAP['wrld_small'];
   else if (dw.project == 101)
     im.src = IMGMAP['wrld_small_merc'];
+  else if (dw.project == 102)
+    im.src = IMGMAP['wrld_small_mill'];
+  else if (dw.project == 204)
+    im.src = IMGMAP['wrld_small_moll'];
   else {
     scaleheight();
     draw();
@@ -50,10 +51,30 @@ function proj() {
     if (dw.project == 0)
       dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-180,90],[180,-90]], 6:this}]);
     else if (dw.project == 101)
-      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-179.99,84],[179.99,-84]], 6:this}]);
+      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-179.99,168],[179.99,-168]], 6:this}]);
+    else if (dw.project == 102)
+      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-179.99,132],[179.99,-132]], 6:this}]);
+    else if (dw.project == 204)
+      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-162,81],[162,-81]], 6:this}]);
     dw.m.bgimg = dw.mflood['.Image_wrld']; // mark as bg
     draw();
   }
+}
+// Rotate map
+function rotate() {
+  var tval = parseFloat(document.getElementById('tvalue').value);
+  dw.rotateCarta(tval);
+  draw();
+}
+// Change proj
+function proj() { 
+  dw.changeProject(document.getElementById('projlist').value);
+  // reset map
+  var centerof = dw.toPoints([0, 0], false);
+  dw.centerCarta(centerof[0] + dw.m.offset[0], centerof[1] + dw.m.offset[1]);
+  dw.style.backgroundColor = dw.isTurnable() ? 'rgb(17,17,96)' : 'rgb(186,196,205)';
+  freeImg();
+  document.getElementById('chkbg').checked ? loadImg() : draw();
 }
 // Tooltip under cursor
 function infobox(ev) {
@@ -67,20 +88,9 @@ function infobox(ev) {
     mtip.style.display = 'none';
   }
 }
-// Rotate Sphere on sides
-function turn(cx, cy) {
-  if (!isNaN(cx) && !isNaN(cy))
-    if (dw.isSpherical()) {
-      var proj = dw.initProj();
-      cx += proj.long0 * 180/Math.PI;
-      cy += proj.lat0 * 180/Math.PI;
-      dw.initProj(' +h=' + proj.h + ' +lon_0=' + cx + ' +lat_0=' + cy);
-      draw();
-    }  
-}
 // Calculate Right Ascention and Declination (ra/dec)
 function calcSpheric(coords, dt) {
-  if (!dw.isSpherical()) return;
+  if (!dw.isTurnable()) return;
   var proj = dw.initProj();
   var rect = dw.viewsizeOf(),
       skyRadius = 0.6 * Math.sqrt((rect[2]-rect[0])*(rect[2]-rect[0]) + (rect[3]-rect[1])*(rect[3]-rect[1])),
@@ -106,7 +116,7 @@ function terminator(time, h, cx, cy) {
   var sunpos = Solar.loadSun(time),
       srect = MVector.spheric2rect(sunpos[0], sunpos[1]),
       sgeo = MVector.rect2geo(time, srect[0], srect[1], srect[2]);
-  if (dw.isSpherical()) {
+  if (dw.isTurnable()) {
     var s1 = MGeo.bigcircle1spheric(sgeo[0], sgeo[1], 1, cx, cy, true);
     h += MGeo.AE;
     var ss1 = [];
@@ -137,15 +147,17 @@ function terminator(time, h, cx, cy) {
   } else {
     var s = MGeo.bigcircle1spheric(sgeo[0], sgeo[1], 5),
         isnight = MGeo.isnight(srect, 179.99, 89.99);
-    if (isnight) s.push([179.99,89.99]); else s.push([179.99,-89.99]);
-    if (isnight) s.push([-179.99,89.99]); else s.push([-179.99,-89.99]);
+    if (dw.project != 201) {
+      if (isnight) s.push([179.99,89.99]); else s.push([179.99,-89.99]);
+      if (isnight) s.push([-179.99,89.99]); else s.push([-179.99,-89.99]);
+    }
     s.push(s[0]);
   }
   return s;
 }
 // Render points (stars, tracs) on lonlat
 function drawlonlat(pts, ftype, areasize) {
-  if (!dw.isSpherical()) return;
+  if (!dw.isTurnable()) return;
   var proj = dw.initProj();
   var cx = proj.long0 * 180/Math.PI,
       cy = proj.lat0 * 180/Math.PI;
@@ -158,6 +170,9 @@ function drawlonlat(pts, ftype, areasize) {
         mftag = pts[i][3] || mlabel;
     if (msize) 
       dw.mopt[ftype]['size'] = msize / 8;
+    if (mlabel == 'Achernar') {
+      ss=1;
+    }
     var m = dw.paintCarta(mcoords, ftype, mlabel);
     // add map area
     if (mftag) {
@@ -188,11 +203,13 @@ function draw() {
       skyRadius = 0.6 * Math.sqrt((rect[2]-rect[0])*(rect[2]-rect[0]) + (rect[3]-rect[1])*(rect[3]-rect[1])),
       eaRadius = Math.sqrt((proj.p15 - 1.0)/(proj.p15 + 1.0)) * 180/Math.PI,
       eaRadiusM = proj.a,
+      rotate = dw.m.rotate,
+      centerof = dw.viewcenterOf(),
       gmtime = getSelTime(),
       darkhide = ('earth' in mlayers);
   var sat = {};
   // clear all
-  dw.clearCarta();
+  dw.clearCarta();  
   for (var i in dw.mflood) {
     switch (dw.mflood[i]['ftype']) {
     case 'terminator':
@@ -210,16 +227,16 @@ function draw() {
       break;
     case 'star':
       var stars = STARS,
-          mstars = Starry.renderSky(stars, rect, skyRadius, eaRadius, cx, cy, gmtime, darkhide);
+          mstars = Starry.renderSky(stars, rect, skyRadius, eaRadius, cx, cy, rotate, centerof, gmtime, darkhide);
       drawlonlat(mstars, 'star', 3);
       break;
     case 'cntlines':
       var lns = CLNS,
           mpts = [];
       for (var i=0; i<lns.length; i=i+2) {
-        var m = Starry.renderSky([lns[i], lns[i+1]], rect, skyRadius, eaRadius, cx, cy, gmtime, darkhide, true);
+        var m = Starry.renderSky([lns[i], lns[i+1]], rect, skyRadius, eaRadius, cx, cy, rotate, centerof, gmtime, darkhide, true);
         if (m.length == 1)
-          m = Starry.renderSky([lns[i], lns[i+1]], rect, skyRadius, eaRadius, cx, cy, gmtime, false, false);
+          m = Starry.renderSky([lns[i], lns[i+1]], rect, skyRadius, eaRadius, cx, cy, rotate, centerof, gmtime, false, false);
         if (m.length > 1)
           mpts.push([[m[0][0][0], m[1][0][0]]]);
       }
@@ -227,22 +244,22 @@ function draw() {
       break;
     case 'cntpos':
       var cnts = CNTS,
-          mcnts = Starry.renderSky(cnts, rect, skyRadius, eaRadius, cx, cy, gmtime, darkhide);
+          mcnts = Starry.renderSky(cnts, rect, skyRadius, eaRadius, cx, cy, rotate, centerof, gmtime, darkhide);
       drawlonlat(mcnts, 'cntpos');
       break;
     case 'sun':
       var sun = Solar.loadSun(gmtime),
-          msun = Starry.renderSky([sun], rect, skyRadius, eaRadius, cx, cy, gmtime, darkhide);
+          msun = Starry.renderSky([sun], rect, skyRadius, eaRadius, cx, cy, rotate, centerof, gmtime, darkhide);
       drawlonlat(msun, 'sun', 5);
       break;
     case 'moon':
       var moon = Solar.loadMoon(gmtime),
-          mmoon = Starry.renderSky([moon], rect, skyRadius, eaRadius, cx, cy, gmtime, darkhide);
+          mmoon = Starry.renderSky([moon], rect, skyRadius, eaRadius, cx, cy, rotate, centerof, gmtime, darkhide);
       drawlonlat(mmoon, 'moon', 4);
       break;
     case 'planet':
       var planets = Solar.loadPlanets(gmtime),
-          mplanets = Starry.renderSky(planets, rect, skyRadius, eaRadius, cx, cy, gmtime, darkhide);
+          mplanets = Starry.renderSky(planets, rect, skyRadius, eaRadius, cx, cy, rotate, centerof, gmtime, darkhide);
       drawlonlat(mplanets, 'planet', 4);
       break;
     case 'terminator':
@@ -312,7 +329,7 @@ function draw() {
               trace.push(['sattrace', i + '.' + j, [mcoords[j-1], mcoords[j]]]);
           dw.loadCarta(trace, 1);
         }
-        if (dw.isSpherical() && mtracs[0].length) {
+        if (dw.isTurnable() && mtracs[0].length) {
           // sat.fields of vision
           if (ftype == 'satsector') {
             var pts = MGeo.circle1spheric(mcoords[0][0], mcoords[0][1], MGeo.AE * 18 * Math.PI/180, 20);
@@ -341,7 +358,7 @@ function draw() {
 }
 // Scale map by height above Earth
 function scaleheight() {
-  if (!dw.isSpherical()) return;
+  if (!dw.isTurnable()) return;
   var proj = dw.initProj();
   var projh = document.getElementById('projh').value * 1000,
       cx = proj.long0 * 180/Math.PI,
@@ -406,34 +423,6 @@ function init() {
   row.appendChild(col);
 
   var col = document.createElement('td');
-  col.width = '9%';
-  var el = document.createElement('button');
-  el.id = 'btup';
-  el.onclick = function() { turn(0, -5) };
-  el.title = 'Turn Up';
-  el.appendChild(document.createTextNode('U'));
-  col.appendChild(el);
-  var el = document.createElement('button');
-  el.id = 'btdown';
-  el.onclick = function() { turn(0, 5) };
-  el.title = 'Turn Down';
-  el.appendChild(document.createTextNode('D'));
-  col.appendChild(el);
-  var el = document.createElement('button');
-  el.id = 'btleft';
-  el.onclick = function() { turn(5, 0) };
-  el.title = 'Turn Left';
-  el.appendChild(document.createTextNode('L'));
-  col.appendChild(el);
-  var el = document.createElement('button');
-  el.id = 'btright';
-  el.onclick = function() { turn(-5, 0) };
-  el.title = 'Turn Right';
-  el.appendChild(document.createTextNode('R'));
-  col.appendChild(el);
-  row.appendChild(col);
-
-  var col = document.createElement('td');
   col.width = '25%';
   var layerlist = el = document.createElement('select');
   el.id = 'layerlist';
@@ -446,6 +435,21 @@ function init() {
   col.appendChild(el);
   var projlist = el = document.createElement('select');
   el.id = 'projlist';
+  col.appendChild(el);
+  row.appendChild(col);
+
+  var col = document.createElement('td');
+  col.width = '10%';
+  col.align = 'center';
+  var el = document.createElement('input');
+  el.type = 'text';
+  el.size= '3';
+  el.id = 'tvalue';
+  el.value= '1';
+  col.appendChild(el);
+  var el = document.createElement('button');
+  el.onclick = rotate;
+  el.appendChild(document.createTextNode('rotate'));
   col.appendChild(el);
   row.appendChild(col);
 
@@ -487,6 +491,21 @@ function init() {
   row.appendChild(col);
 
   var col = document.createElement('td');
+  col.width = '5%';
+  col.align = 'center';
+  var el = document.createElement('input');
+  el.type = 'checkbox';
+  el.id = 'chkbg';
+  el.checked = true;
+  el.onclick = function(o) {
+    freeImg();
+    o.target.checked ? loadImg() : draw();
+  };
+  col.appendChild(el);
+  col.appendChild(document.createTextNode(' bg'));
+  row.appendChild(col);
+
+  var col = document.createElement('td');
   col.width = '10%';
   col.align = 'center';
   var el = document.createElement('div');
@@ -518,43 +537,38 @@ function init() {
   dw = new dbCarta({id:'mcol', height:col.offsetHeight});
   // define new layers
   dw.extend(dw.mopt, layers());
-  var optfunc = function(v, o) {
+  var optfunc = function(o, k, v) {
     var el = document.createElement('option');
-    el.value = v;
-    el.appendChild(document.createTextNode(v));
+    el.value = k;
+    el.appendChild(document.createTextNode(v || k));
     o.appendChild(el);
   };
   // list layers
-  optfunc('layers...', layerlist);
+  optfunc(layerlist, 'layers...');
   layerlist.options[layerlist.selectedIndex].disabled = 'true';
-  for(var i in layers()) optfunc(i, layerlist);
+  for(var i in layers()) optfunc(layerlist, i);
   // list sat
-  optfunc('satellites...', satlist);
+  optfunc(satlist, 'satellites...');
   satlist.options[satlist.selectedIndex].disabled = 'true';
-  for(var i in TLEDATA) if (TLEDATA[i]) optfunc(TLEDATA[i][0], satlist);
+  for(var i in TLEDATA) if (TLEDATA[i]) optfunc(satlist, TLEDATA[i][0]);
   // list nsper proj height
-  optfunc('height...', projh);
+  optfunc(projh, 'height...');
   projh.options[projh.selectedIndex].disabled = 'true';
-  for(var i=1000; i<103000; i+=3000) optfunc(i, projh);
+  for(var i=1000; i<103000; i+=3000) optfunc(projh, i);
   projh.value = 40000;
   // list proj
-  optfunc('proj...', projlist);
+  optfunc(projlist, 'proj...');
   projlist.options[projlist.selectedIndex].disabled = 'true';
-  for(var i in { 0: dw.projlist[0], 101: dw.projlist[0], 202: dw.projlist[202] }) {
-    var projname = dw.projlist[i].split(' ')[0].split('=')[1];
-    el = document.createElement('option');
-    el.value = i;
-    el.appendChild(document.createTextNode(projname));
-    projlist.appendChild(el);
-  }
+  var pl = [0, 101, 102, 201, 202, 204]; // exlude ortho
+  for(var i in pl) optfunc(projlist, pl[i], dw.projlist[pl[i]].split(' ')[0].split('=')[1]);
   projlist.value = '202';
   // fill date/time
-  for(i=1999; i<2050; i++) optfunc(i, yy);
-  for(i=1; i<13; i++) optfunc(i, mm);
-  for(i=1; i<32; i++) optfunc(i, dd);
-  for(i=0; i<24; i++) optfunc(i, hh);
-  for(i=0; i<60; i++) optfunc(i, mi);
-  for(i=0; i<60; i++) optfunc(i, ss);
+  for(i=1999; i<2050; i++) optfunc(yy, i);
+  for(i=1; i<13; i++) optfunc(mm, i);
+  for(i=1; i<32; i++) optfunc(dd, i);
+  for(i=0; i<24; i++) optfunc(hh, i);
+  for(i=0; i<60; i++) optfunc(mi, i);
+  for(i=0; i<60; i++) optfunc(ss, i);
   // events
   layerlist.onchange = function() {
     mopt[this.value]['hide'] = (!mopt[this.value]['hide']);
@@ -588,7 +602,8 @@ function init() {
   // curr. coords
   dw.clfunc.onmousemove = function(sd, dd, ev) {
     var scoords, tcoord = document.getElementById('tcoord');
-    if (dw.isSpherical()) {
+    tcoord.innerHTML = '';
+    if (dw.isTurnable()) {
       if (scoords = calcSpheric(sd, getSelTime())) {
         // in radians
         tcoord.innerHTML = 'Ra: ' + scoords[0].toFixed(4) + ' Dec: ' + scoords[1].toFixed(4);
@@ -604,15 +619,16 @@ function init() {
   }
   // draw
   dw.loadCarta(CONTINENTS);
+  //delete CONTINENTS;
   dw.loadCarta([{0:'.Image', 1:'wrld'}]);
   dw.loadCarta(dw.createMeridians());
   dw.loadCarta([['DotPort', 'Moscow', [[37.700,55.750]], 'Москва', null, 1]]);
+  imgMapB64(); // reload images base64
   // center pov
   var pov = dw.mflood['DotPort_Moscow']['coords'][0],
       pts = dw.toPoints(pov, true);
   dw.centerCarta(pts[0] + dw.m.offset[0], pts[1] + dw.m.offset[1]);
   delete dw.cfg.mapbg; // no draw map area
-  //delete CONTINENTS;
   setSelTime();
   proj();
 }

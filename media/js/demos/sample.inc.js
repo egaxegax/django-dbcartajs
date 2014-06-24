@@ -1,26 +1,8 @@
 /**
  * Sample demo.
  * Draw background images in diff. projections.
- * egax@bk.ru, 2013
+ * egax@bk.ru, 2013-14.
  */
-function scale() {
-  var scale = parseFloat(document.getElementById('scale').value);
-  dw.scaleCarta(1); // fix labels
-  dw.scaleCarta(scale);
-  dw.draw();
-}
-function turn() {
-  var cx = parseFloat(document.getElementById('turnx').value),
-      cy = parseFloat(document.getElementById('turny').value);
-  if (!isNaN(cx) && !isNaN(cy))
-    if (dw.isSpherical()) {
-      var proj = dw.initProj();
-      cx += proj.long0 * 180/Math.PI;
-      cy += proj.lat0 * 180/Math.PI;
-      dw.initProj(' +lon_0=' + cx + ' +lat_0=' + cy);
-      dw.draw();
-    }
-}
 // Imitate Ajax loading
 function loading() {
   dw.clearCarta();
@@ -37,32 +19,66 @@ function loading() {
   }
   ctx.restore();
 }
-function proj() {
-  dw.changeProject(document.getElementById('projlist').value);
-  loading();
-  // worldmap raster image
+// Free bg image
+function freeImg() {
+  delete dw.m.bgimg;
+  delete dw.mflood['.Image_wrld']['img'];
+}
+// Load worldmap raster image
+function loadImg() {
   var im = new Image();
   if (dw.project == 0)
     im.src = IMGMAP['wrld_small'];
   else if (dw.project == 101)
     im.src = IMGMAP['wrld_small_merc'];
+  else if (dw.project == 102)
+    im.src = IMGMAP['wrld_small_mill'];
+  else if (dw.project == 204)
+    im.src = IMGMAP['wrld_small_moll'];
   else
     dw.draw();
   im.onload = function() {
     if (dw.project == 0)
       dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-180,90],[180,-90]], 6:this}]);
     else if (dw.project == 101)
-      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-179.99,84],[179.99,-84]], 6:this}]);
+      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-179.99,168],[179.99,-168]], 6:this}]);
+    else if (dw.project == 102)
+      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-179.99,132],[179.99,-132]], 6:this}]);
+    else if (dw.project == 204)
+      dw.loadCarta([{0:'.Image', 1:'wrld', 2:[[-162,81],[162,-81]], 6:this}]);
     dw.m.bgimg = dw.mflood['.Image_wrld']; // mark as bg
     dw.draw();
   }
+}
+function rotate() {
+  var tval = parseFloat(document.getElementById('tvalue').value);
+  dw.rotateCarta(tval);
+  dw.draw();
+}
+function scale() {
+  var tval = parseFloat(document.getElementById('tvalue').value);
+  dw.scaleCarta(1); // fix labels
+  dw.scaleCarta(tval);
+  dw.draw();
+}
+function proj() {
+  dw.changeProject(document.getElementById('projlist').value);
+  freeImg();
+  document.getElementById('chkbg').checked ?
+    loading() || loadImg() :
+    dw.draw();
 }
 function draw() {
   try {
     coords = eval(document.getElementById('getcoords').value); coords.length; } 
   catch (e) { 
      alert('Invalid coords!\nUse:\n[[1,2],[3,4],..]'); return; }
-  dw.loadCarta([[ document.getElementById('ftype').value, Math.random(), coords, 'MyTest', coords[0], true ]], 1);
+  dw.loadCarta([[ document.getElementById('ftype').value, Math.random(), coords, 'MyTest', coords[0], true ]]);
+  // center pov
+  var pov = coords[0],
+      pts = dw.toPoints(pov, true);
+  dw.centerCarta(pts[0] + dw.m.offset[0], pts[1] + dw.m.offset[1]);
+  dw.draw();
 }
 // Tooltip under cursor
 function infobox(ev) {
@@ -85,7 +101,7 @@ function init() {
   mtab.appendChild(row);
 
   var col = document.createElement('td');
-  col.width = '15%';
+  col.width = '10%';
   var el = document.createElement('h2');
   el.appendChild(document.createTextNode('Sample'));
   el.style.padding = '0';
@@ -94,38 +110,21 @@ function init() {
   row.appendChild(col);
 
   var col = document.createElement('td');
-  col.width = '10%';
+  col.width = '15%';
   col.align = 'center';
   var el = document.createElement('input');
   el.type = 'text';
   el.size= '3';
-  el.id = 'scale';
+  el.id = 'tvalue';
   el.value= '1';
   col.appendChild(el);
-  el = document.createElement('button');
+  var el = document.createElement('button');
   el.onclick = scale;
   el.appendChild(document.createTextNode('scale'));
   col.appendChild(el);
-  row.appendChild(col);
-
-  var col = document.createElement('td');
-  col.width = '15%';
-  col.align = 'center';
-  el = document.createElement('input');
-  el.type = 'text';
-  el.size= '4';
-  el.id = 'turnx';
-  el.value= '10';
-  col.appendChild(el);
-  el = document.createElement('input');
-  el.type = 'text';
-  el.size= '4';
-  el.id = 'turny';
-  el.value= '10';
-  col.appendChild(el);
-  el = document.createElement('button');
-  el.onclick = turn;
-  el.appendChild(document.createTextNode('turn'));
+  var el = document.createElement('button');
+  el.onclick = rotate;
+  el.appendChild(document.createTextNode('rotate'));
   col.appendChild(el);
   row.appendChild(col);
 
@@ -164,6 +163,21 @@ function init() {
   el.onclick = draw;
   el.appendChild(document.createTextNode('draw'));
   col.appendChild(el);
+  row.appendChild(col);
+
+  var col = document.createElement('td');
+  col.width = '10%';
+  col.align = 'center';
+  var el = document.createElement('input');
+  el.type = 'checkbox';
+  el.id = 'chkbg';
+  el.checked = true;
+  el.onclick = function(o) {
+    freeImg();
+    o.target.checked ? loadImg() : dw.draw();
+  };
+  col.appendChild(el);
+  col.appendChild(document.createTextNode(' bg'));
   row.appendChild(col);
 
   var col = document.createElement('td');
@@ -207,6 +221,7 @@ function init() {
     tcoords.innerHTML = ' X: Y:';
     if (dd) tcoords.innerHTML = ' X: ' + dd[0].toFixed(2) + ' Y: ' + dd[1].toFixed(2);
     infobox(ev);
+    dw.paintCoords(dd);
   }
   // load
   dw.loadCarta(CONTINENTS);
@@ -223,5 +238,6 @@ function init() {
     ['DotPort', 'rio', [[-43.455,-22.722]], 'Rio de Janeiro'],
     ['DotPort', 'brz', [[15.285,-4.285]], 'Brazzaville']
   ]);
+  imgMapB64(); // reload images base64
   proj();
 }

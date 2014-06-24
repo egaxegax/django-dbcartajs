@@ -1,8 +1,13 @@
 /**
- * User Map area.
+ * Use Map area.
  * View countries under mouse cursor.
- * egax@bk.ru, 2013
+ * egax@bk.ru, 2013-14.
  */
+function rotate() {
+  var tval = parseFloat(document.getElementById('tvalue').value);
+  dw.rotateCarta(tval);
+  dw.draw();
+}
 function proj() {
   dw.changeProject(document.getElementById('projlist').value);
   dw.draw();
@@ -29,7 +34,7 @@ function init() {
   mtab.appendChild(row);
 
   var col = document.createElement('td');
-  col.width = '15%';
+  col.width = '20%';
   var el = document.createElement('h2');
   el.appendChild(document.createTextNode('Use Map Area'));
   el.style.padding = '0';
@@ -38,7 +43,22 @@ function init() {
   row.appendChild(col);
 
   var col = document.createElement('td');
-  col.width = '10%';
+  col.width = '15%';
+  col.align = 'center';
+  var el = document.createElement('input');
+  el.type = 'text';
+  el.size= '3';
+  el.id = 'tvalue';
+  el.value= '1';
+  col.appendChild(el);
+  var el = document.createElement('button');
+  el.onclick = rotate;
+  el.appendChild(document.createTextNode('rotate'));
+  col.appendChild(el);
+  row.appendChild(col);
+
+  var col = document.createElement('td');
+  col.width = '15%';
   col.align = 'center';
   col.appendChild(document.createTextNode('proj '));
   var projlist = el = document.createElement('select');
@@ -48,7 +68,7 @@ function init() {
 
   var col = document.createElement('td');
   col.align = 'center';
-  col.id = 'coords';
+  col.id = 'tcoords';
   row.appendChild(col);
   document.body.appendChild(mtab);
 
@@ -71,7 +91,12 @@ function init() {
   el.onmousemove = function(){ this.innerHTML = ''; };
   document.body.appendChild(el);
 
-  dw = new dbCarta({id:'mcol', height:col.offsetHeight});
+  dw = new dbCarta({
+    id:'mcol', 
+    height:col.offsetHeight,
+    mapbg: 'transparent',
+    mapfg: 'rgb(220,250,0)'
+  });
   // add new layers
   dw.extend(dw.mopt, {
     'Arctic': {cls: 'Polygon', fg: 'rgb(200,200,200)', bg: dw.mopt['.Arctic']['bg']},
@@ -80,7 +105,7 @@ function init() {
   dw.loadCarta(COUNTRIES);
   delete COUNTRIES;
   dw.loadCarta(dw.createMeridians());
-  dw.draw();
+  proj();
   // projlist
   for(var i in dw.projlist) {
     var projname = dw.projlist[i].split(' ')[0].split('=')[1];
@@ -92,16 +117,16 @@ function init() {
   projlist.onchange = proj;
   // curr.object
   dw.clfunc.onmousemove = function(sd, dd, ev) {
-    var mcoord = document.getElementById('coords');
+    var mcoord = document.getElementById('tcoords');
     var label = '';
     if (dw.m.pmap) {
       var m, o = dw.mflood[dw.m.pmap];
       // cities count
-      if (m = CITIES[o['label']])
-        label = ' : ' + m.length + ' cities';
+      if (m = CITIES[o['label']]) label = ' : ' + m.length + ' cities';
       label = o['label'] + ' : ' + dw.m.pmap.split('_')[1] + label;
     } 
     mcoord.innerHTML = label;
     infobox(ev);
+    dw.paintCoords(dd);
   }
 }
