@@ -1,10 +1,9 @@
 #-*- coding: utf-8 -*-
 
 from django.core.urlresolvers import reverse
-from django.views.generic.simple import direct_to_template
 from django.template import TemplateDoesNotExist
 from django.http import HttpResponse, Http404
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render_to_response
 import os, sys
 
 # Controllers
@@ -12,7 +11,7 @@ import os, sys
 def list_page(request, **kw):
     page = kw.get('page') or 'index.html'
     try:
-        return direct_to_template(request, page)
+        return render_to_response(page, {'request': request})
     except TemplateDoesNotExist:
         raise Http404
 
@@ -70,5 +69,6 @@ def pyinfo(request):
     except:
         v = sys.exc_info()[1].message
     info_obj += [{'name': 'sgp4', 'val': v}]
-    return direct_to_template(request, 'pyinfo.html', 
-                              {'info_obj': info_obj})
+    return render_to_response('pyinfo.html', 
+                              {'request': request,
+                               'info_obj': info_obj})
