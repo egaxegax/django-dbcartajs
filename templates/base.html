@@ -23,5 +23,5 @@
 </script>
 <!--/Google counter-->
 </head>
-<body onload="if ('init' in window) init();">{% block content %}{% endblock %}</body>
+<body onload="if ('init' in window) init(); else if ('initMap' in window) initMap();">{% block content %}{% endblock %}</body>
 </html>
