@@ -1,9 +1,9 @@
 /*
- * dbCartajs HTML5 Canvas dymanic object map v1.8.2.
+ * dbCartajs HTML5 Canvas dymanic object map v1.8.4.
  * It uses Proj4js transformations.
  *
  * Source at https://github.com/egaxegax/dbCartajs.git.
- * egax@bk.ru, 2013-14.
+ * egax@bk.ru, 2013-15.
  */
 function dbCarta(cfg) {
   cfg = cfg||{};
@@ -555,14 +555,23 @@ function dbCarta(cfg) {
       if (m['cls'] == 'Dot' || m['cls'] == 'Rect') {
         if (this.chkPts(pts[0])){
           centerofpts = pts;
-          if (m['cls'] == 'Dot')
-            ctx.arc(pts[0][0], pts[0][1], msize, 0, Math.PI*2, 0);
-          else
+          if (m['cls'] == 'Dot') {
+            for (var i in pts)
+              if (this.chkPts(pts[i])){
+                ctx.beginPath();
+                ctx.arc(pts[i][0], pts[i][1], msize, 0, Math.PI*2, 0);
+                ctx.strokeStyle = m['fg'];
+                ctx.stroke();
+                ctx.fillStyle = m['bg'] || m['fg'];
+                ctx.fill();
+              }
+          } else {
             ctx.rect(pts[0][0] - msize/2.0, pts[0][1] - msize/2.0, msize, msize);
-          ctx.strokeStyle = m['fg'];
-          ctx.stroke();
-          ctx.fillStyle = m['bg'] || m['fg'];
-          ctx.fill();
+            ctx.strokeStyle = m['fg'];
+            ctx.stroke();
+            ctx.fillStyle = m['bg'] || m['fg'];
+            ctx.fill();
+          }
         }
       } else {
         var mpts = [];
@@ -1016,6 +1025,7 @@ function dbCarta(cfg) {
       }
     },
     touchstart: function(ev) {
+      this.m.dotouch = true;
       var touches = ev.changedTouches;
       for (var i=0; i<touches.length; i++)
         this.m.touches.push(touches[i]);
@@ -1033,15 +1043,14 @@ function dbCarta(cfg) {
       if (!this.m.touches.length)
         this.mouseup(touches[touches.length - 1]);
     },
-    // both touch and click
     onmousemove: function(ev) {
       this.mousemove(ev);
     },
     onmousedown: function(ev) {
-      if (!this.m.touches.length) this.mousedown(ev);
+      if (!this.m.dotouch) this.mousedown(ev);
     },
     onmouseup: function(ev) {
-      if (!this.m.touches.length) this.mouseup(ev);
+      if (!this.m.dotouch) this.mouseup(ev);
     }
   });
   dw.addEventListener('onmousemove', dw.mousemove, false);
