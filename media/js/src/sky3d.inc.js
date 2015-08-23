@@ -515,12 +515,12 @@ var initMap = function() {
 
   var scene = new THREE.Scene();
 
-  var planetTexture   = THREE.ImageUtils.loadTexture('/media/img/textures/earth_kmap.jpg');
-  var cloudsTexture   = THREE.ImageUtils.loadTexture('/media/img/textures/earth_clouds_1024.png');
-  var coronaTexture   = THREE.ImageUtils.loadTexture('/media/img/textures/corona.png');
-  var starTexture = THREE.ImageUtils.loadTexture('/media/img/textures/star_particle.png');
-  var satelliteTexture = THREE.ImageUtils.loadTexture('/media/img/textures/satellite_100x100.png');
-  var issTexture = THREE.ImageUtils.loadTexture('/media/img/textures/iss_100x100.png');
+  var planetTexture   = THREE.ImageUtils.loadTexture('data/textures/earth_kmap.jpg');
+  var cloudsTexture   = THREE.ImageUtils.loadTexture('data/textures/earth_clouds_1024.png');
+  var coronaTexture   = THREE.ImageUtils.loadTexture('data/textures/corona.png');
+  var starTexture = THREE.ImageUtils.loadTexture('data/textures/star_particle.png');
+  var satelliteTexture = THREE.ImageUtils.loadTexture('data/textures/satellite_100x100.png');
+  var issTexture = THREE.ImageUtils.loadTexture('data/textures/iss_100x100.png');
 
   // layer groups
   var gplanet = new THREE.Object3D();
