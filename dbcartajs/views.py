@@ -3,7 +3,7 @@
 from django.core.urlresolvers import reverse
 from django.template import TemplateDoesNotExist
 from django.http import HttpResponse, Http404
-from django.shortcuts import get_object_or_404, render_to_response
+from django.shortcuts import get_object_or_404, render_to_response, redirect
 import os, sys
 
 # Controllers
@@ -11,7 +11,8 @@ import os, sys
 def list_page(request, **kw):
     page = kw.get('page') or 'index.html'
     try:
-        return render_to_response(page, {'request': request})
+#        return render_to_response(page, {'request': request})
+        return redirect('http://egaxegax.github.io/dbCartajs/demo/' + page)
     except TemplateDoesNotExist:
         raise Http404
 
