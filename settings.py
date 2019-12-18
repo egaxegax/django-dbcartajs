@@ -31,6 +31,8 @@ TEMPLATE_CONTEXT_PROCESSORS = (
 
 LOGIN_REDIRECT_URL = '/'
 
+PROJECT_ROOT = os.path.dirname(__file__)
+
 ADMIN_MEDIA_PREFIX = '/media/admin/'
 MEDIA_ROOT = os.path.join(os.path.dirname(__file__), 'media')
 TEMPLATE_DIRS = (os.path.join(os.path.dirname(__file__), 'templates'),)
@@ -38,3 +40,5 @@ TEMPLATE_DIRS = (os.path.join(os.path.dirname(__file__), 'templates'),)
 ROOT_URLCONF = 'urls'
 
 DEBUG = False
+
+ALLOWED_HOSTS = '*'
