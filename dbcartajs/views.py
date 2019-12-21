@@ -12,7 +12,7 @@ def list_page(request, **kw):
     page = kw.get('page') or 'index.html'
     try:
 #        return render_to_response(page, {'request': request})
-        return redirect('http://egaxegax.github.io/dbCartajs/demo/' + page)
+        return redirect('http://egaxegax.github.io/dbcartajs/demos/' + page)
     except TemplateDoesNotExist:
         raise Http404
 
