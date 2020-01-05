@@ -9,9 +9,10 @@ import os, sys
 # Controllers
 
 def list_page(request, **kw):
-    page = kw.get('page') or 'index.html'
+    page = kw.get('page')
     try:
-#        return render_to_response(page, {'request': request})
+        if not page:
+            return redirect('http://egaxegax.github.io/dbcartajs')
         return redirect('http://egaxegax.github.io/dbcartajs/demos/' + page)
     except TemplateDoesNotExist:
         raise Http404

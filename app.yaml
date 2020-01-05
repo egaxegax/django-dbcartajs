@@ -26,3 +26,4 @@ handlers:
 
 - url: /.*
   script: djangoappengine/main/main.py
+  secure: always
