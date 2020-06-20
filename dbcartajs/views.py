@@ -12,8 +12,8 @@ def list_page(request, **kw):
     page = kw.get('page')
     try:
         if not page:
-            return redirect('http://egaxegax.github.io/dbcartajs')
-        return redirect('http://egaxegax.github.io/dbcartajs/demos/' + page)
+            return redirect('https://egaxegax.github.io/dbcartajs')
+        return redirect('https://egaxegax.github.io/dbcartajs/' + page)
     except TemplateDoesNotExist:
         raise Http404
 
